@@ -1,0 +1,20 @@
+/// API Keys Configuration Template
+/// 
+/// Instructions:
+/// 1. Copy this file and rename it to 'api_keys.dart' (remove .template)
+/// 2. Replace the placeholder values with your actual API keys
+/// 3. Never commit the actual api_keys.dart file to version control
+/// 
+/// The api_keys.dart file is already added to .gitignore
+
+class ApiKeys {
+  // Google Maps API Key
+  // Get your key from: https://console.cloud.google.com/google/maps-apis
+  // Required for: Maps display, geocoding, and location services
+  static const String googleMapsApiKey = 'YOUR_GOOGLE_MAPS_API_KEY_HERE';
+  
+  // Add other API keys here as needed
+  // Example:
+  // static const String supabaseUrl = 'YOUR_SUPABASE_URL';
+  // static const String supabaseAnonKey = 'YOUR_SUPABASE_ANON_KEY';
+}

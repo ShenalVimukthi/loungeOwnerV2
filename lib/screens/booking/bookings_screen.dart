@@ -1,0 +1,263 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../widgets/owner_bottom_nav_bar.dart';
+import '../../presentation/providers/lounge_owner_provider.dart';
+import '../../presentation/providers/lounge_booking_provider.dart';
+import '../../presentation/providers/registration_provider.dart';
+import '../../config/theme_config.dart';
+
+/// Screen for viewing and managing bookings
+class BookingsScreen extends StatefulWidget {
+  const BookingsScreen({super.key});
+
+  @override
+  State<BookingsScreen> createState() => _BookingsScreenState();
+}
+
+class _BookingsScreenState extends State<BookingsScreen> {
+  String _selectedFilter = 'all';
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadBookings();
+    });
+  }
+
+  Future<void> _loadBookings() async {
+    final bookingProvider = context.read<LoungeBookingProvider>();
+    final registrationProvider = context.read<RegistrationProvider>();
+
+    // Get lounge ID
+    final lounges = registrationProvider.myLounges;
+    if (lounges.isEmpty) {
+      await registrationProvider.loadMyLounges();
+    }
+
+    final firstLoungeId = registrationProvider.myLounges.isNotEmpty
+        ? registrationProvider.myLounges.first.id
+        : null;
+
+    // Load bookings based on filter
+    if (_selectedFilter == 'all') {
+      await bookingProvider.getOwnerBookings(loungeId: firstLoungeId);
+    } else {
+      await bookingProvider.getOwnerBookings(
+        loungeId: firstLoungeId,
+        status: _selectedFilter,
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const bg = Color(0xFFFFFBF5);
+
+    return Scaffold(
+      backgroundColor: bg,
+      appBar: AppBar(
+        backgroundColor: bg,
+        elevation: 0,
+        title: const Text(
+          'Bookings',
+          style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w600),
+        ),
+        actions: [
+          // Filter dropdown
+          Padding(
+            padding: const EdgeInsets.only(right: 16),
+            child: DropdownButton<String>(
+              value: _selectedFilter,
+              underline: const SizedBox(),
+              icon: const Icon(Icons.filter_list, color: AppColors.primary),
+              items: const [
+                DropdownMenuItem(value: 'all', child: Text('All')),
+                DropdownMenuItem(value: 'active', child: Text('Active')),
+                DropdownMenuItem(value: 'pending', child: Text('Pending')),
+                DropdownMenuItem(value: 'completed', child: Text('Completed')),
+              ],
+              onChanged: (value) {
+                if (value != null) {
+                  setState(() {
+                    _selectedFilter = value;
+                  });
+                  _loadBookings();
+                }
+              },
+            ),
+          ),
+        ],
+      ),
+      body: SafeArea(
+        child: Consumer<LoungeBookingProvider>(
+          builder: (context, bookingProvider, child) {
+            if (bookingProvider.isLoading) {
+              return const Center(
+                child: CircularProgressIndicator(color: AppColors.primary),
+              );
+            }
+
+            if (bookingProvider.error != null) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.error_outline,
+                      size: 80,
+                      color: Colors.red.shade400,
+                    ),
+                    const SizedBox(height: 24),
+                    Text(
+                      'Error',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey.shade700,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 40),
+                      child: Text(
+                        bookingProvider.error!,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 15,
+                          color: Colors.grey.shade500,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    ElevatedButton(
+                      onPressed: _loadBookings,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                      ),
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            final bookings = bookingProvider.bookings;
+
+            if (bookings.isEmpty) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.calendar_today_outlined,
+                      size: 80,
+                      color: Colors.grey.shade400,
+                    ),
+                    const SizedBox(height: 24),
+                    Text(
+                      'No Bookings',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey.shade700,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'You don\'t have any bookings yet',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 15,
+                        color: Colors.grey.shade500,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            return RefreshIndicator(
+              onRefresh: _loadBookings,
+              color: AppColors.primary,
+              child: ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: bookings.length,
+                itemBuilder: (context, index) {
+                  final booking = bookings[index];
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    child: ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: AppColors.primary.withOpacity(0.1),
+                        child: const Icon(
+                          Icons.person,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                      title: Text(
+                        booking.passengerName ?? 'Guest',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(booking.loungeName ?? 'Lounge'),
+                          Text('Ref: ${booking.bookingReference}'),
+                          Text('Guests: ${booking.guestCount}'),
+                        ],
+                      ),
+                      trailing: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color:
+                              _getStatusColor(booking.status).withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          booking.status,
+                          style: TextStyle(
+                            color: _getStatusColor(booking.status),
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                      isThreeLine: true,
+                    ),
+                  );
+                },
+              ),
+            );
+          },
+        ),
+      ),
+      bottomNavigationBar: OwnerBottomNavBar(
+        currentIndex: 2,
+        verificationStatus: Provider.of<LoungeOwnerProvider>(
+          context,
+          listen: false,
+        ).loungeOwner?.verificationStatus,
+      ),
+    );
+  }
+
+  Color _getStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'active':
+      case 'confirmed':
+        return Colors.green;
+      case 'pending':
+        return Colors.orange;
+      case 'completed':
+        return Colors.blue;
+      case 'cancelled':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
+}

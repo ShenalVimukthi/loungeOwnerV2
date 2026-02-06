@@ -1,0 +1,565 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../config/theme_config.dart';
+import '../../domain/entities/user.dart';
+import '../../presentation/providers/auth_provider.dart';
+import '../../presentation/providers/lounge_staff_provider.dart';
+import '../../presentation/providers/registration_provider.dart';
+import 'staff_registration_status_screen.dart';
+import '../dashboard/lounge_owner_home_screen.dart';
+
+class StaffRegistrationPage extends StatefulWidget {
+  final bool isAddedByAdmin;
+
+  const StaffRegistrationPage({super.key, this.isAddedByAdmin = false});
+
+  @override
+  State<StaffRegistrationPage> createState() => _StaffRegistrationPageState();
+}
+
+class _StaffRegistrationPageState extends State<StaffRegistrationPage> {
+  final _formKey = GlobalKey<FormState>();
+  final _nameCtrl = TextEditingController();
+  final _phoneCtrl = TextEditingController();
+  final _emailCtrl = TextEditingController();
+  final _nicCtrl = TextEditingController();
+  final _hiredDateCtrl = TextEditingController();
+  DateTime? _hiredDate;
+  String? _selectedLoungeId;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.isAddedByAdmin) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _loadLounges();
+      });
+    }
+  }
+
+  Future<void> _loadLounges() async {
+    final registrationProvider = context.read<RegistrationProvider>();
+    if (registrationProvider.myLounges.isEmpty) {
+      await registrationProvider.loadMyLounges();
+    }
+    if (mounted && registrationProvider.myLounges.isNotEmpty) {
+      setState(() {
+        _selectedLoungeId = registrationProvider.myLounges.first.id;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _phoneCtrl.dispose();
+    _emailCtrl.dispose();
+    _nicCtrl.dispose();
+    _hiredDateCtrl.dispose();
+    super.dispose();
+  }
+
+  void _submit() async {
+    if (_formKey.currentState?.validate() ?? false) {
+      if (widget.isAddedByAdmin) {
+        // Admin/Lounge Owner adding staff - use the new API
+        await _addStaffViaAPI();
+      } else {
+        // Staff self-registration flow - update profile
+        await _completeStaffProfile();
+      }
+    }
+  }
+
+  Future<void> _addStaffViaAPI() async {
+    final staffProvider = context.read<LoungeStaffProvider>();
+
+    if (_selectedLoungeId == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select a lounge'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    // Show loading
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(color: AppColors.primary),
+      ),
+    );
+
+    // Call API to add staff
+    final success = await staffProvider.addStaffDirectly(
+      loungeId: _selectedLoungeId!,
+      fullName: _nameCtrl.text.trim(),
+      nicNumber: _nicCtrl.text.trim(),
+      phone: _phoneCtrl.text.trim(),
+      email: _emailCtrl.text.trim(),
+      hiredDate: _hiredDate ?? DateTime.now(),
+    );
+
+    if (!mounted) return;
+    Navigator.pop(context); // Close loading dialog
+
+    if (success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Staff member added successfully!'),
+          backgroundColor: AppColors.success,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+
+      // Navigate back to home
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const LoungeOwnerHomeScreen(),
+        ),
+        (route) => false,
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(staffProvider.error ?? 'Failed to add staff member'),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  Future<void> _completeStaffProfile() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+
+    // Update user data with registration information
+    if (authProvider.user != null) {
+      final updatedUser = User(
+        id: authProvider.user!.id,
+        phoneNumber: authProvider.user!.phoneNumber,
+        email: authProvider.user!.email,
+        firstName: _nameCtrl.text.trim(),
+        lastName: '',
+        nic: _nicCtrl.text.trim(),
+        roles: authProvider.user!.roles,
+        profileCompleted: true,
+        phoneVerified: authProvider.user!.phoneVerified,
+        status: authProvider.user!.status,
+        createdAt: authProvider.user!.createdAt,
+        updatedAt: DateTime.now(),
+      );
+
+      await authProvider.updateUserProfile(updatedUser);
+    }
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Registration completed successfully!'),
+        backgroundColor: AppColors.success,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(10)),
+        ),
+      ),
+    );
+
+    // Staff self-registration flow - go to registration status screen
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => StaffRegistrationStatusScreen(
+          name: _nameCtrl.text.trim(),
+          phone: _phoneCtrl.text.trim(),
+          nic: _nicCtrl.text.trim(),
+        ),
+      ),
+    );
+  }
+
+  InputDecoration _fieldDecoration(String hint, IconData icon) {
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 14),
+      prefixIcon: Icon(icon, color: AppColors.primary, size: 20),
+      filled: true,
+      fillColor: AppColors.surface,
+      contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppColors.border),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppColors.border),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppColors.primary, width: 2),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppColors.error),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppColors.error, width: 2),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        backgroundColor: AppColors.background,
+        elevation: 0,
+        leading: IconButton(
+          onPressed: () => Navigator.pop(context),
+          icon: const Icon(
+            Icons.arrow_back_ios_new,
+            size: 20,
+            color: AppColors.textPrimary,
+          ),
+        ),
+      ),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header Section
+                Center(
+                  child: Column(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withOpacity(0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.person_add_alt_1,
+                          size: 48,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Staff Member',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Please provide staff details for verification',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 32),
+
+                // Lounge Selection (for admin/owner only)
+                if (widget.isAddedByAdmin) ...[
+                  const Text(
+                    'Lounge Selection',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Consumer<RegistrationProvider>(
+                    builder: (context, registrationProvider, child) {
+                      final lounges = registrationProvider.myLounges;
+
+                      if (lounges.isEmpty) {
+                        return Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: AppColors.surface,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppColors.border),
+                          ),
+                          child: const Text(
+                            'No lounges found. Please create a lounge first.',
+                            style: TextStyle(color: AppColors.textSecondary),
+                          ),
+                        );
+                      }
+
+                      return DropdownButtonFormField<String>(
+                        value: _selectedLoungeId,
+                        decoration: InputDecoration(
+                          hintText: 'Select Lounge',
+                          hintStyle: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 14,
+                          ),
+                          prefixIcon: const Icon(
+                            Icons.apartment,
+                            color: AppColors.primary,
+                            size: 20,
+                          ),
+                          filled: true,
+                          fillColor: AppColors.surface,
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 16,
+                            horizontal: 16,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide:
+                                const BorderSide(color: AppColors.border),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide:
+                                const BorderSide(color: AppColors.border),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(
+                              color: AppColors.primary,
+                              width: 2,
+                            ),
+                          ),
+                          errorBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide:
+                                const BorderSide(color: AppColors.error),
+                          ),
+                        ),
+                        items: lounges.map((lounge) {
+                          return DropdownMenuItem<String>(
+                            value: lounge.id,
+                            child: Text(
+                              lounge.loungeName,
+                              style: const TextStyle(fontSize: 14),
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            _selectedLoungeId = value;
+                          });
+                        },
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please select a lounge';
+                          }
+                          return null;
+                        },
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 24),
+                ],
+
+                // Form Fields Section
+                const Text(
+                  'Personal Information',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                TextFormField(
+                  controller: _nameCtrl,
+                  decoration: _fieldDecoration(
+                    'Full Name',
+                    Icons.person_outline,
+                  ),
+                  textCapitalization: TextCapitalization.words,
+                  keyboardType: TextInputType.name,
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) {
+                      return 'Please enter full name';
+                    }
+                    final trimmedValue = v.trim();
+                    if (trimmedValue.length < 3) {
+                      return 'Name must be at least 3 characters';
+                    }
+                    if (trimmedValue.length > 50) {
+                      return 'Name must not exceed 50 characters';
+                    }
+                    final nameRegex = RegExp(r"^[a-zA-Z\s\-'\.]+$");
+                    if (!nameRegex.hasMatch(trimmedValue)) {
+                      return 'Name can only contain letters, spaces, hyphens, and apostrophes';
+                    }
+                    if (!RegExp(r'[a-zA-Z]').hasMatch(trimmedValue)) {
+                      return 'Name must contain at least one letter';
+                    }
+                    if (trimmedValue.contains(RegExp(r'\s{2,}'))) {
+                      return 'Name cannot contain consecutive spaces';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+
+                TextFormField(
+                  controller: _phoneCtrl,
+                  keyboardType: TextInputType.phone,
+                  decoration: _fieldDecoration(
+                    'Phone Number',
+                    Icons.phone_outlined,
+                  ),
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) {
+                      return 'Please enter phone number';
+                    }
+                    final trimmedValue = v.trim();
+                    // Remove common formatting characters
+                    final digitsOnly = trimmedValue.replaceAll(
+                      RegExp(r'[^0-9]'),
+                      '',
+                    );
+                    if (digitsOnly.length < 9 || digitsOnly.length > 10) {
+                      return 'Phone number must be 9-10 digits';
+                    }
+                    // Check for valid Sri Lankan mobile formats
+                    final phoneRegex = RegExp(r'^(0?7[0-9]{8}|\+947[0-9]{8})$');
+                    if (!phoneRegex.hasMatch(digitsOnly)) {
+                      return 'Please enter a valid Sri Lankan phone number';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+
+                TextFormField(
+                  controller: _emailCtrl,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: _fieldDecoration(
+                    'Email Address',
+                    Icons.email_outlined,
+                  ),
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) {
+                      return 'Please enter email address';
+                    }
+                    final emailRegex = RegExp(
+                      r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
+                    );
+                    if (!emailRegex.hasMatch(v.trim())) {
+                      return 'Please enter a valid email address';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+
+                TextFormField(
+                  controller: _nicCtrl,
+                  decoration: _fieldDecoration(
+                    'NIC Number',
+                    Icons.badge_outlined,
+                  ),
+                  textCapitalization: TextCapitalization.characters,
+                  maxLength: 12,
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) {
+                      return 'Please enter NIC number';
+                    }
+                    final trimmedValue = v.trim().toUpperCase();
+                    // Old format: 9 digits + V/X
+                    final oldNicRegex = RegExp(r'^\d{9}[VvXx]$');
+                    // New format: 12 digits
+                    final newNicRegex = RegExp(r'^\d{12}$');
+                    if (!oldNicRegex.hasMatch(trimmedValue) &&
+                        !newNicRegex.hasMatch(trimmedValue)) {
+                      return 'Invalid NIC format. Use 9 digits + V/X or 12 digits';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+
+                // Hired Date Field
+                TextFormField(
+                  controller: _hiredDateCtrl,
+                  readOnly: true,
+                  decoration: _fieldDecoration(
+                    'Hired Date',
+                    Icons.calendar_today_outlined,
+                  ),
+                  onTap: () async {
+                    final date = await showDatePicker(
+                      context: context,
+                      initialDate: _hiredDate ?? DateTime.now(),
+                      firstDate: DateTime(2000),
+                      lastDate: DateTime(2100),
+                    );
+                    if (date != null) {
+                      setState(() {
+                        _hiredDate = date;
+                        _hiredDateCtrl.text =
+                            '${date.day}/${date.month}/${date.year}';
+                      });
+                    }
+                  },
+                  validator: (v) => (v == null || v.trim().isEmpty)
+                      ? 'Please select hired date'
+                      : null,
+                ),
+                const SizedBox(height: 32),
+
+                // Submit Button
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _submit,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: AppColors.textLight,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 2,
+                      shadowColor: AppColors.primary.withOpacity(0.3),
+                    ),
+                    child: const Text(
+                      'Complete Registration',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

@@ -1,0 +1,177 @@
+ROLE SELECTION FEATURE - VISUAL FLOW
+=====================================
+
+BEFORE (Old Flow):
+------------------
+┌─────────────────┐
+│  Phone Input    │
+│   Screen        │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  Receive SMS    │
+│   with OTP      │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  OTP Verify     │
+│   Screen        │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  Admin          │
+│  Dashboard      │ (Only option)
+└─────────────────┘
+
+
+AFTER (New Flow):
+-----------------
+┌─────────────────┐
+│  Phone Input    │
+│   Screen        │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  Receive SMS    │
+│   with OTP      │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  OTP Verify     │
+│   Screen        │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────────────────────┐
+│  ⭐ ROLE SELECTION SCREEN ⭐    │
+│                                  │
+│  ┌──────────────────────────┐  │
+│  │  👤 Admin                │  │
+│  │  Manage lounges          │  │
+│  └──────────────────────────┘  │
+│                                  │
+│  ┌──────────────────────────┐  │
+│  │  👥 Staff Member         │  │
+│  │  Access staff features   │  │
+│  └──────────────────────────┘  │
+└───────┬──────────────┬──────────┘
+        │              │
+   Admin│              │Staff
+        │              │
+        ▼              ▼
+┌─────────────┐  ┌─────────────┐
+│   Admin     │  │   Staff     │
+│  Dashboard  │  │  Dashboard  │
+│ (existing)  │  │   (new)     │
+└─────────────┘  └─────────────┘
+
+
+COMPONENTS BREAKDOWN:
+=====================
+
+1. ROLE SELECTION SCREEN
+   ├── AppBar: "Select Your Role"
+   ├── Icon: Person outline (large, themed)
+   ├── Title: "Select Your Role"
+   ├── Subtitle: "Choose how you want to continue"
+   ├── Role Cards:
+   │   ├── Admin Card
+   │   │   ├── Icon: admin_panel_settings
+   │   │   ├── Title: "Admin"
+   │   │   ├── Subtitle: "Manage lounges and operations"
+   │   │   └── Color: AppColors.primary (orange)
+   │   │
+   │   └── Staff Card
+   │       ├── Icon: people
+   │       ├── Title: "Staff Member"
+   │       ├── Subtitle: "Access staff features and tasks"
+   │       └── Color: Blue
+   │
+   └── Footer: "You can always change this later in settings"
+
+2. STAFF DASHBOARD SCREEN
+   ├── AppBar: "Staff Dashboard"
+   ├── Welcome Card (gradient)
+   │   └── "Welcome Back! Ready to serve customers today"
+   ├── Stats Row
+   │   ├── Orders: 12
+   │   └── Bookings: 8
+   ├── Quick Actions Grid
+   │   ├── Take Order
+   │   ├── View Bookings
+   │   ├── Menu
+   │   └── My Profile
+   ├── Recent Activity
+   │   ├── Order #1234 completed
+   │   ├── New booking received
+   │   └── Order #1233 in progress
+   └── Bottom Navigation (CustomBottomNavBar)
+
+
+FILES CREATED:
+==============
+✅ lib/screens/auth/role_selection_screen.dart (260 lines)
+✅ lib/screens/staff/staff_dashboard_screen.dart (340 lines)
+✅ lib/screens/auth/auth_navigation_helper.dart (20 lines)
+✅ lib/config/constants.dart (updated)
+
+
+INTEGRATION POINT:
+==================
+File: lib/screens/auth/otp_verification_screen.dart
+
+Location: After successful OTP verification
+Method: Usually in _verifyOtp() or similar
+
+OLD CODE:
+---------
+Navigator.pushReplacementNamed(context, '/dashboard');
+
+NEW CODE:
+---------
+import 'role_selection_screen.dart';
+...
+Navigator.pushReplacement(
+  context,
+  MaterialPageRoute(
+    builder: (context) => const RoleSelectionScreen(),
+  ),
+);
+
+
+COLOR SCHEME:
+=============
+Background:      #FFFBF5 (pageBg - cream/beige)
+Primary:         AppColors.primary (orange)
+Admin Icon:      AppColors.primary
+Staff Icon:      Blue.shade600
+Cards:           White with grey.shade200 borders
+Text Primary:    Colors.black87
+Text Secondary:  Colors.grey.shade600
+
+
+RESPONSIVENESS:
+===============
+✅ Works on all screen sizes
+✅ Safe area handling
+✅ Scrollable layouts
+✅ Touch-friendly buttons (48px minimum)
+✅ Readable text sizes
+
+
+TESTING CHECKLIST:
+==================
+□ Enter phone number
+□ Receive SMS OTP
+□ Enter valid OTP
+□ See role selection screen
+□ Click Admin card → Goes to admin dashboard
+□ Back to role selection (if needed)
+□ Click Staff card → Goes to staff dashboard
+□ Bottom navigation works on both dashboards
+□ Theme colors consistent across screens

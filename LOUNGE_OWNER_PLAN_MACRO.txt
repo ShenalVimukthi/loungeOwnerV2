@@ -1,0 +1,22 @@
+there are two roles in the lounge app
+lounge owner, lounge staff
+
+once otp entered we check the role
+if existing user we check,
+if lounge owner, in table of lounge_owner we need to check profile complete,(profile is completed is true when he add his personal and business details and atleast one lounge details added) then he navigate to dashboard, and also check that his profile is approved by the admin side, if not we showing a banner top of content saying approve pending
+if not complete mean, lounge owner in the incomplete registration process, so we save stages of his registrations, so we can show the process he need to continue on,
+
+and only lounge owner can add staff,
+so once lounge owner add staff, it create entry in user table, but phone verified false
+and then another enry at lounge staff table, there we put a flag as profile not complte
+so if staff going to log, we check normal user table, and once he do otp, phone no verified is true,
+and if profile complete, then he can go to app with limited features according to staff role
+if not he need to see initial registration forms, clear?
+so in inital registration forms, we ask full name, and NIC no. form staff, we have other details right?
+so we gonna update user table structure, so the name also should save on his table
+and this staff is approved and or disable by lounge owner, admin also can do, but he is not involved
+
+
+
+once i login with new number, it still navigates to review and submit form of initial regrestion forms, with previous user data!!!
+this is critical bug, can tolerate in production

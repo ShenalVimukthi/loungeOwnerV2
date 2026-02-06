@@ -1,0 +1,222 @@
+import 'package:flutter/foundation.dart';
+import '../../domain/entities/lounge_booking.dart';
+import '../../data/datasources/lounge_booking_remote_datasource.dart';
+import '../../core/error/exceptions.dart';
+
+/// Provider: Lounge Booking Management
+/// Manages UI state for lounge booking operations
+class LoungeBookingProvider extends ChangeNotifier {
+  final LoungeBookingRemoteDataSource remoteDataSource;
+
+  LoungeBookingProvider({required this.remoteDataSource});
+
+  // UI State
+  bool _isLoading = false;
+  String? _error;
+  List<LoungeBooking> _bookings = [];
+  LoungeBooking? _selectedBooking;
+
+  // Getters
+  bool get isLoading => _isLoading;
+  String? get error => _error;
+  List<LoungeBooking> get bookings => _bookings;
+  LoungeBooking? get selectedBooking => _selectedBooking;
+
+  // Filter getters
+  List<LoungeBooking> get activeBookings =>
+      _bookings.where((b) => b.isActive).toList();
+  List<LoungeBooking> get pendingBookings =>
+      _bookings.where((b) => b.isPending).toList();
+  List<LoungeBooking> get completedBookings =>
+      _bookings.where((b) => b.isCompleted).toList();
+  List<LoungeBooking> get todayBookings {
+    final now = DateTime.now();
+    return _bookings.where((booking) {
+      final checkInDate = booking.checkInTime;
+      return checkInDate.year == now.year &&
+          checkInDate.month == now.month &&
+          checkInDate.day == now.day;
+    }).toList();
+  }
+
+  /// Get owner bookings
+  Future<bool> getOwnerBookings({
+    String? loungeId,
+    String? status,
+    String? date,
+  }) async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      final bookingModels = await remoteDataSource.getOwnerBookings(
+        loungeId: loungeId,
+        status: status,
+        date: date,
+      );
+
+      _bookings = bookingModels;
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } on AppException catch (e) {
+      _error = e.message;
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _error = 'An unexpected error occurred';
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Get today's bookings (Staff view)
+  Future<bool> getTodayBookings() async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      final bookingModels = await remoteDataSource.getTodayBookings();
+      _bookings = bookingModels;
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } on AppException catch (e) {
+      _error = e.message;
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _error = 'An unexpected error occurred';
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Get my bookings (Passenger view)
+  Future<bool> getMyBookings({
+    String? status,
+    int? page,
+  }) async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      final bookingModels = await remoteDataSource.getMyBookings(
+        status: status,
+        page: page,
+      );
+
+      _bookings = bookingModels;
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } on AppException catch (e) {
+      _error = e.message;
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _error = 'An unexpected error occurred';
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Get upcoming bookings
+  Future<bool> getUpcomingBookings() async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      final bookingModels = await remoteDataSource.getUpcomingBookings();
+      _bookings = bookingModels;
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } on AppException catch (e) {
+      _error = e.message;
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _error = 'An unexpected error occurred';
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Get booking by ID
+  Future<bool> getBookingById(String bookingId) async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      final booking = await remoteDataSource.getBookingById(bookingId);
+      _selectedBooking = booking;
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } on AppException catch (e) {
+      _error = e.message;
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _error = 'An unexpected error occurred';
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Get booking by reference
+  Future<bool> getBookingByReference(String reference) async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      final booking = await remoteDataSource.getBookingByReference(reference);
+      _selectedBooking = booking;
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } on AppException catch (e) {
+      _error = e.message;
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _error = 'An unexpected error occurred';
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Clear error
+  void clearError() {
+    _error = null;
+    notifyListeners();
+  }
+
+  /// Reset provider state
+  void reset() {
+    _isLoading = false;
+    _error = null;
+    _bookings = [];
+    _selectedBooking = null;
+    notifyListeners();
+  }
+}
