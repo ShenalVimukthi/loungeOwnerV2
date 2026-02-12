@@ -1518,6 +1518,7 @@ class _LoungeOwnerRegistrationScreenState
         managerFullName: registrationProvider.managerFullName ?? '',
         managerNicNumber: registrationProvider.managerNicNumber ?? '',
         managerEmail: registrationProvider.managerEmail ?? '',
+        district: registrationProvider.district ?? '',
       );
 
       if (!businessInfoSuccess) {

@@ -48,6 +48,7 @@ class LoungeOwnerProvider with ChangeNotifier {
     required String managerFullName,
     required String managerNicNumber,
     required String managerEmail,
+    required String district,
   }) async {
     _isLoading = true;
     _errorMessage = null;
@@ -59,6 +60,7 @@ class LoungeOwnerProvider with ChangeNotifier {
       managerFullName: managerFullName,
       managerNicNumber: managerNicNumber,
       managerEmail: managerEmail,
+      district: district,
     );
 
     return result.fold(

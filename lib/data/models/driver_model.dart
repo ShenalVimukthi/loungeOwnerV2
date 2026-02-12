@@ -21,7 +21,8 @@ class DriverModel extends Driver {
       id: json['id'] as String,
       loungeId: json['lounge_id'] as String,
       fullName: json['name'] as String,
-      nicNumber: json['nic_number'] as String,
+      nicNumber: (json['nic_number'] ?? json['nic'])
+          as String, // Handle both nic_number and nic
       contactNumber: json['contact_no'] as String,
       vehicleNumber: json['vehicle_no'] as String,
       vehicleType: json['vehicle_type'] as String,
@@ -35,7 +36,7 @@ class DriverModel extends Driver {
     return {
       'lounge_id': loungeId,
       'name': fullName,
-      'nic_number': nicNumber,
+      'nic_number': nicNumber, // Backend expects nic_number not nic
       'contact_no': contactNumber,
       'vehicle_no': vehicleNumber,
       'vehicle_type': vehicleType,

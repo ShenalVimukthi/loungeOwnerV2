@@ -23,6 +23,7 @@ class LoungeOwnerRepositoryImpl implements LoungeOwnerRepository {
     required String managerFullName,
     required String managerNicNumber,
     required String managerEmail,
+    required String district,
   }) async {
     try {
       await remoteDataSource.saveBusinessInfo(
@@ -31,6 +32,7 @@ class LoungeOwnerRepositoryImpl implements LoungeOwnerRepository {
         managerFullName: managerFullName,
         managerNicNumber: managerNicNumber,
         managerEmail: managerEmail,
+        district: district,
       );
       return const Right(null);
     } on ServerException catch (e) {

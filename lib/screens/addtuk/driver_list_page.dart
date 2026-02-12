@@ -1,16 +1,58 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
 import '../../config/theme_config.dart';
+import '../../presentation/providers/driver_provider.dart';
+import '../../presentation/providers/registration_provider.dart';
 import 'add_tuk_tuk_page.dart';
 
-class DriverListPage extends StatelessWidget {
+class DriverListPage extends StatefulWidget {
   const DriverListPage({super.key});
+
+  @override
+  State<DriverListPage> createState() => _DriverListPageState();
+}
+
+class _DriverListPageState extends State<DriverListPage> {
+  String? _selectedLoungeId;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializeLounges();
+    });
+  }
+
+  Future<void> _initializeLounges() async {
+    final registrationProvider = context.read<RegistrationProvider>();
+
+    if (registrationProvider.myLounges.isEmpty) {
+      await registrationProvider.loadMyLounges();
+    }
+
+    if (registrationProvider.myLounges.isNotEmpty) {
+      setState(() {
+        _selectedLoungeId = registrationProvider.myLounges.first.id;
+      });
+      _loadDriverList();
+    }
+  }
+
+  Future<void> _loadDriverList() async {
+    final driverProvider = context.read<DriverProvider>();
+
+    if (_selectedLoungeId == null) {
+      return;
+    }
+
+    await driverProvider.getDriversByLounge(loungeId: _selectedLoungeId!);
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-
-      /// AppBar
       appBar: AppBar(
         elevation: 0,
         backgroundColor: AppColors.surface,
@@ -27,40 +69,115 @@ class DriverListPage extends StatelessWidget {
         ),
         centerTitle: true,
       ),
+      body: Consumer2<DriverProvider, RegistrationProvider>(
+        builder: (context, driverProvider, registrationProvider, _) {
+          if (driverProvider.isLoading) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-      /// Body
-      body: Column(
-        children: [
-          const SizedBox(height: 80),
+          if (driverProvider.error != null) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline,
+                      size: 48, color: AppColors.error),
+                  const SizedBox(height: 16),
+                  Text(driverProvider.error!,
+                      style: const TextStyle(fontSize: 16)),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: _loadDriverList,
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
+            );
+          }
 
-          /// Empty State
-          Icon(
-            Icons.person_outline,
-            size: 120,
-            color: AppColors.textSecondary.withOpacity(0.5),
-          ),
-          const SizedBox(height: 20),
-          const Text(
-            'No Drivers Found',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textPrimary,
+          final driverList = driverProvider.driverList;
+
+          if (driverList.isEmpty && _selectedLoungeId != null) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.local_taxi_outlined,
+                      size: 64, color: AppColors.textSecondary),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'No drivers yet',
+                    style: TextStyle(
+                      fontSize: 18,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          return RefreshIndicator(
+            onRefresh: _loadDriverList,
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                // Lounge Selection Dropdown
+                Container(
+                  margin: const EdgeInsets.only(bottom: 20),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: DropdownButton<String>(
+                    isExpanded: true,
+                    underline: Container(),
+                    hint: const Text('Select Lounge'),
+                    value: _selectedLoungeId,
+                    items: registrationProvider.myLounges.map((lounge) {
+                      return DropdownMenuItem<String>(
+                        value: lounge.id,
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.location_on_outlined,
+                              size: 18,
+                              color: AppColors.primary,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                lounge.loungeName,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      if (value != null) {
+                        setState(() {
+                          _selectedLoungeId = value;
+                        });
+                        _loadDriverList();
+                      }
+                    },
+                  ),
+                ),
+                // Driver list
+                ...driverList.map((driver) => DriverCard(driver: driver)),
+              ],
             ),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Add drivers to manage and assign\nTuk Tuk services easily.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 14,
-              color: AppColors.textSecondary,
-            ),
-          ),
-        ],
+          );
+        },
       ),
-
-      /// Add Driver Button
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
           Navigator.push(
@@ -79,6 +196,118 @@ class DriverListPage extends StatelessWidget {
         ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+    );
+  }
+}
+
+/// ---------------- DRIVER CARD ----------------
+class DriverCard extends StatelessWidget {
+  final dynamic driver;
+
+  const DriverCard({
+    super.key,
+    required this.driver,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final dateFormat = DateFormat('dd-MM-yyyy');
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.primary),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.textPrimary.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          /// Header
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 22,
+                backgroundColor: AppColors.primary.withOpacity(0.1),
+                child: const Icon(Icons.local_taxi, color: AppColors.primary),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  driver.fullName,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          InfoRow(label: 'Contact', value: driver.contactNumber),
+          InfoRow(label: 'NIC', value: driver.nicNumber),
+          InfoRow(label: 'Vehicle Number', value: driver.vehicleNumber),
+          InfoRow(
+            label: 'Vehicle Type',
+            value: driver.vehicleType.toUpperCase().replaceAll('_', ' '),
+          ),
+          InfoRow(
+            label: 'Added Date',
+            value: dateFormat.format(driver.createdAt),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// ---------------- INFO ROW ----------------
+class InfoRow extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const InfoRow({
+    super.key,
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 130,
+            child: Text(
+              '$label:',
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 13,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style:
+                  const TextStyle(fontSize: 13, color: AppColors.textPrimary),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

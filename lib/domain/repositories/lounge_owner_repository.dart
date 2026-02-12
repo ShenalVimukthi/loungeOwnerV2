@@ -11,6 +11,7 @@ abstract class LoungeOwnerRepository {
     required String managerFullName,
     required String managerNicNumber,
     required String managerEmail,
+    required String district,
   });
 
   /// Upload Manager NIC images (Step 2)

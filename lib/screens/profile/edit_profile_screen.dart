@@ -66,6 +66,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         managerFullName: _fullNameController.text.trim(),
         managerNicNumber: loungeOwner.managerNicNumber ?? '',
         managerEmail: loungeOwner.managerEmail ?? '',
+        district: '', // TODO: Add district to profile entity when backend returns it
       );
 
       if (!mounted) return;

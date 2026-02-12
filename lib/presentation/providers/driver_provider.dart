@@ -45,8 +45,7 @@ class DriverProvider extends ChangeNotifier {
         vehicleType: vehicleType,
       );
 
-      // Add to local list
-      _driverList.add(driver);
+      // Don't add to local list - will be fetched when driver list loads
       _selectedDriver = driver;
 
       _isLoading = false;

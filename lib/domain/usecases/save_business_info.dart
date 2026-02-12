@@ -13,6 +13,7 @@ class SaveBusinessInfo {
     required String managerFullName,
     required String managerNicNumber,
     required String managerEmail,
+    required String district,
   }) async {
     // Validate business name
     if (businessName.trim().isEmpty) {
@@ -43,11 +44,17 @@ class SaveBusinessInfo {
       }
     }
 
+    // Validate district
+    if (district.trim().isEmpty) {
+      return Left(ValidationFailure('District is required'));
+    }
+
     return await repository.saveBusinessInfo(
       businessName: businessName.trim(),
       businessLicense: businessLicense.trim(),
       managerFullName: managerFullName.trim(),
       managerNicNumber: managerNicNumber.trim().toUpperCase(),
+      district: district.trim(),
       managerEmail: managerEmail.trim(),
     );
   }

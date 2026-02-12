@@ -74,7 +74,7 @@ class DriverRemoteDataSourceImpl implements DriverRemoteDataSource {
         data: {
           'lounge_id': loungeId,
           'name': fullName,
-          'nic_number': nicNumber,
+          'nic_number': nicNumber, // Backend expects nic_number not nic
           'contact_no': contactNumber,
           'vehicle_no': vehicleNumber,
           'vehicle_type': vehicleType,
@@ -116,7 +116,12 @@ class DriverRemoteDataSourceImpl implements DriverRemoteDataSource {
     required String loungeId,
   }) async {
     try {
+      print('📤 [DRIVER API] Fetching drivers for lounge: $loungeId');
       final response = await _dio.get('/api/v1/lounges/$loungeId/drivers');
+
+      print('📥 [DRIVER API] Response status: ${response.statusCode}');
+      print('📥 [DRIVER API] Response data type: ${response.data.runtimeType}');
+      print('📥 [DRIVER API] Response data: ${response.data}');
 
       if (response.data == null) {
         throw const ServerException(
@@ -127,10 +132,15 @@ class DriverRemoteDataSourceImpl implements DriverRemoteDataSource {
       }
 
       final driverList = _extractDriverList(response.data);
+      print('✅ [DRIVER API] Parsed ${driverList.length} drivers');
       return driverList.map((json) => DriverModel.fromJson(json)).toList();
     } on DioException catch (e) {
+      print('❌ [DRIVER API] DioException: ${e.message}');
+      print('❌ [DRIVER API] Response: ${e.response?.data}');
       throw _handleDioError(e);
-    } catch (e) {
+    } catch (e, stackTrace) {
+      print('❌ [DRIVER API] Parse error: $e');
+      print('❌ [DRIVER API] Stack trace: $stackTrace');
       throw const ServerException(
         'Failed to parse driver data from response',
         'PARSE_ERROR',
@@ -139,20 +149,47 @@ class DriverRemoteDataSourceImpl implements DriverRemoteDataSource {
   }
 
   List<Map<String, dynamic>> _extractDriverList(dynamic responseData) {
+    print(
+        '📤 [DRIVER API] Extracting driver list from: ${responseData.runtimeType}');
+
+    // Handle direct array response
     if (responseData is List) {
+      print(
+          '📤 [DRIVER API] Response is a direct List with ${responseData.length} items');
       return responseData.whereType<Map<String, dynamic>>().toList();
     }
 
+    // Handle Map response with various possible keys
     if (responseData is Map<String, dynamic>) {
+      print(
+          '📤 [DRIVER API] Response is a Map with keys: ${responseData.keys.join(", ")}');
+
+      // Try common wrapper keys
       final dynamic unwrapped = responseData['drivers'] ??
           responseData['data'] ??
-          responseData['result'];
+          responseData['result'] ??
+          responseData['items'];
 
       if (unwrapped is List) {
+        print(
+            '📤 [DRIVER API] Found list in wrapper with ${unwrapped.length} items');
         return unwrapped.whereType<Map<String, dynamic>>().toList();
+      }
+
+      // Check if the map itself contains nested data
+      if (unwrapped is Map<String, dynamic>) {
+        final dynamic nestedList =
+            unwrapped['drivers'] ?? unwrapped['data'] ?? unwrapped['items'];
+        if (nestedList is List) {
+          print(
+              '📤 [DRIVER API] Found list in nested wrapper with ${nestedList.length} items');
+          return nestedList.whereType<Map<String, dynamic>>().toList();
+        }
       }
     }
 
+    print('❌ [DRIVER API] Could not extract driver list from response');
+    print('❌ [DRIVER API] Response structure: $responseData');
     throw const ServerException(
       'Failed to parse driver data from response',
       'PARSE_ERROR',

@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import '../../core/network/api_client.dart';
 import '../../core/error/exceptions.dart';
 
@@ -16,8 +17,17 @@ class LoungeOwnerRemoteDataSource {
     required String managerFullName,
     required String managerNicNumber,
     required String managerEmail,
+    required String district,
   }) async {
     try {
+      print('📤 Sending business info request...');
+      print('   Business Name: $businessName');
+      print('   Business License: $businessLicense');
+      print('   Manager Name: $managerFullName');
+      print('   Manager NIC: $managerNicNumber');
+      print('   Manager Email: $managerEmail');
+      print('   District: $district');
+      
       final response = await apiClient.post(
         '/api/v1/lounge-owner/register/business-info',
         data: {
@@ -26,13 +36,34 @@ class LoungeOwnerRemoteDataSource {
           'manager_full_name': managerFullName,
           'manager_nic_number': managerNicNumber,
           'manager_email': managerEmail,
+          'district': district,
         },
       );
 
+      print('✅ Business info saved successfully');
       if (response.statusCode != 200) {
         throw ServerException('Failed to save business and manager info');
       }
+    } on DioException catch (e) {
+      print('❌ DioException in saveBusinessInfo:');
+      print('   Status Code: ${e.response?.statusCode}');
+      print('   Response Data: ${e.response?.data}');
+      print('   Error Message: ${e.message}');
+      
+      // Extract meaningful error from backend response
+      String errorMessage = 'Failed to save business info';
+      if (e.response?.data != null) {
+        final data = e.response!.data;
+        if (data is Map<String, dynamic>) {
+          errorMessage = data['error'] ?? data['message'] ?? errorMessage;
+          if (data['details'] != null) {
+            errorMessage += ': ${data['details']}';
+          }
+        }
+      }
+      throw ServerException(errorMessage);
     } catch (e) {
+      print('❌ Unexpected error in saveBusinessInfo: $e');
       throw ServerException(e.toString());
     }
   }
