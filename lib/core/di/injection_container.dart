@@ -14,6 +14,7 @@ import '../../data/datasources/supabase_storage_service.dart';
 import '../../data/datasources/lounge_staff_remote_datasource.dart';
 import '../../data/datasources/lounge_booking_remote_datasource.dart';
 import '../../data/datasources/transport_location_remote_datasource.dart';
+import '../../data/datasources/driver_remote_datasource.dart';
 
 // Repositories
 import '../../data/repositories/auth_repository_impl.dart';
@@ -55,6 +56,7 @@ import '../../presentation/providers/role_selection_provider.dart';
 import '../../presentation/providers/lounge_staff_provider.dart';
 import '../../presentation/providers/lounge_booking_provider.dart';
 import '../../presentation/providers/transport_location_provider.dart';
+import '../../presentation/providers/driver_provider.dart';
 
 // Config
 import '../../config/api_config.dart';
@@ -90,6 +92,7 @@ class InjectionContainer {
   late LoungeStaffRemoteDataSource _loungeStaffRemoteDataSource;
   late LoungeBookingRemoteDataSource _loungeBookingRemoteDataSource;
   late TransportLocationRemoteDataSource _transportLocationRemoteDataSource;
+  late DriverRemoteDataSource _driverRemoteDataSource;
 
   // Repositories
   late AuthRepository _authRepository;
@@ -127,6 +130,7 @@ class InjectionContainer {
   late LoungeStaffProvider _loungeStaffProvider;
   late LoungeBookingProvider _loungeBookingProvider;
   late TransportLocationProvider _transportLocationProvider;
+  late DriverProvider _driverProvider;
 
   /// Initialize all dependencies
   Future<void> init() async {
@@ -190,7 +194,10 @@ class InjectionContainer {
       apiClient: _apiClient,
     );
 
-    _transportLocationRemoteDataSource = TransportLocationRemoteDataSourceImpl();
+    _transportLocationRemoteDataSource =
+        TransportLocationRemoteDataSourceImpl();
+
+    _driverRemoteDataSource = DriverRemoteDataSourceImpl();
 
     // ========== Repositories ==========
     _authRepository = AuthRepositoryImpl(
@@ -280,6 +287,10 @@ class InjectionContainer {
 
     _transportLocationProvider = TransportLocationProvider(
       remoteDataSource: _transportLocationRemoteDataSource,
+    );
+
+    _driverProvider = DriverProvider(
+      remoteDataSource: _driverRemoteDataSource,
     );
   }
 
@@ -373,7 +384,9 @@ class InjectionContainer {
   RoleSelectionProvider get roleSelectionProvider => _roleSelectionProvider;
   LoungeStaffProvider get loungeStaffProvider => _loungeStaffProvider;
   LoungeBookingProvider get loungeBookingProvider => _loungeBookingProvider;
-  TransportLocationProvider get transportLocationProvider => _transportLocationProvider;
+  TransportLocationProvider get transportLocationProvider =>
+      _transportLocationProvider;
+  DriverProvider get driverProvider => _driverProvider;
 
   AuthRepository get authRepository => _authRepository;
   StaffRepository get staffRepository => _staffRepository;

@@ -12,6 +12,7 @@ import 'presentation/providers/marketplace_provider.dart';
 import 'presentation/providers/lounge_staff_provider.dart';
 import 'presentation/providers/lounge_booking_provider.dart';
 import 'presentation/providers/transport_location_provider.dart';
+import 'presentation/providers/driver_provider.dart';
 
 // Screens
 import 'screens/splash_screen.dart';
@@ -74,6 +75,9 @@ class MyApp extends StatelessWidget {
         ),
         ChangeNotifierProvider<TransportLocationProvider>.value(
           value: di.transportLocationProvider,
+        ),
+        ChangeNotifierProvider<DriverProvider>.value(
+          value: di.driverProvider,
         ),
       ],
       child: Consumer<AuthProvider>(

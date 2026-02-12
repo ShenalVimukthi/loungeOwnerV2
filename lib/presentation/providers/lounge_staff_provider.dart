@@ -23,12 +23,17 @@ class LoungeStaffProvider extends ChangeNotifier {
   LoungeStaff? get selectedStaff => _selectedStaff;
 
   // Filter getters
+  bool _isApprovalActive(LoungeStaff staff) {
+    return staff.approvalStatus == 'active' ||
+        staff.approvalStatus == 'approved';
+  }
+
   List<LoungeStaff> get approvedStaff =>
-      _staffList.where((s) => s.isApproved).toList();
+      _staffList.where((s) => _isApprovalActive(s)).toList();
   List<LoungeStaff> get pendingStaff =>
-      _staffList.where((s) => s.isPending).toList();
+      _staffList.where((s) => !_isApprovalActive(s) || !s.isActive).toList();
   List<LoungeStaff> get activeStaff =>
-      _staffList.where((s) => s.isActive).toList();
+      _staffList.where((s) => _isApprovalActive(s) && s.isActive).toList();
 
   /// Add staff member directly (Owner only)
   Future<bool> addStaffDirectly({

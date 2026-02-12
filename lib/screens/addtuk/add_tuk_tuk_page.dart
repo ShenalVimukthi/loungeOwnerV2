@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../config/theme_config.dart';
 import '../../presentation/providers/registration_provider.dart';
+import '../../presentation/providers/driver_provider.dart';
 
 class AddTukTukPage extends StatefulWidget {
   const AddTukTukPage({super.key});
@@ -40,19 +41,84 @@ class _AddTukTukPageState extends State<AddTukTukPage> {
     super.dispose();
   }
 
-  void _submitForm() {
+  void _submitForm() async {
     if (_formKey.currentState!.validate()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Vehicle details added successfully!'),
-          backgroundColor: Colors.green.shade600,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
+      if (_selectedLoungeId == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Please select a lounge'),
+            backgroundColor: Colors.red.shade600,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
           ),
-        ),
+        );
+        return;
+      }
+
+      final driverProvider =
+          Provider.of<DriverProvider>(context, listen: false);
+
+      // Map vehicle type to backend format
+      String vehicleType;
+      switch (_selectedVehicleType) {
+        case 'Three Wheeler':
+          vehicleType = 'three_wheeler';
+          break;
+        case 'Van':
+          vehicleType = 'van';
+          break;
+        case 'Car':
+          vehicleType = 'car';
+          break;
+        default:
+          vehicleType = 'three_wheeler';
+      }
+
+      // Format contact number to +94 format
+      String formattedContact = _contactNumberController.text.trim();
+      if (formattedContact.startsWith('0')) {
+        formattedContact = '+94${formattedContact.substring(1)}';
+      } else if (!formattedContact.startsWith('+')) {
+        formattedContact = '+94$formattedContact';
+      }
+
+      final success = await driverProvider.addDriver(
+        loungeId: _selectedLoungeId!,
+        fullName: _driverNameController.text.trim(),
+        nicNumber: _nicController.text.trim().toUpperCase(),
+        contactNumber: formattedContact,
+        vehicleNumber: _vehicleNumberController.text.trim().toUpperCase(),
+        vehicleType: vehicleType,
       );
-      Navigator.pop(context);
+
+      if (!mounted) return;
+
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Driver added successfully!'),
+            backgroundColor: Colors.green.shade600,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        );
+        Navigator.pop(context);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(driverProvider.error ?? 'Failed to add driver'),
+            backgroundColor: Colors.red.shade600,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        );
+      }
     }
   }
 
@@ -333,28 +399,43 @@ class _AddTukTukPageState extends State<AddTukTukPage> {
                 const SizedBox(height: 32),
 
                 // Submit Button
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _submitForm,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                Consumer<DriverProvider>(
+                  builder: (context, driverProvider, _) {
+                    return SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed:
+                            driverProvider.isLoading ? null : _submitForm,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 2,
+                          shadowColor: AppColors.primary.withOpacity(0.3),
+                        ),
+                        child: driverProvider.isLoading
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                      Colors.white),
+                                ),
+                              )
+                            : const Text(
+                                'Add Vehicle',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 16,
+                                ),
+                              ),
                       ),
-                      elevation: 2,
-                      shadowColor: AppColors.primary.withOpacity(0.3),
-                    ),
-                    child: const Text(
-                      'Add Vehicle',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 16,
-                      ),
-                    ),
-                  ),
+                    );
+                  },
                 ),
 
                 const SizedBox(height: 16),
