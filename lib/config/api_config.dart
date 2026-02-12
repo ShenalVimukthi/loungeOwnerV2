@@ -1,26 +1,19 @@
 class ApiConfig {
   // ============================================
-  // DUAL BACKEND CONFIGURATION
+  // LOCAL BACKEND CONFIGURATION
   // ============================================
-  // - Choreo Backend: Auth, OTP, User Profile (SMS configured, production-ready)
-  // - Local Backend: Lounge APIs (staff, bookings, etc. - for development)
+  // All endpoints now point to local backend server
 
-  // CHOREO BACKEND - For Auth, OTP, and general APIs
-  static const String choreoBaseUrl =
-      'https://a9a9815d-fed9-4f0e-bf6f-706f789df0f3-dev.e1-us-east-azure.choreoapis.dev/default/backend/v1.0';
+  // LOCAL BACKEND - For All APIs
+  // IMPORTANT: Change this based on your setup:
+  // Android Emulator: http://10.0.2.2:8080
+  // iOS Simulator: http://localhost:8080
+  // Physical Device/Mac: http://localhost:8080 or your machine's IP (e.g., http://192.168.x.x:8080)
+  static const String localBaseUrl = 'http://10.0.2.2:8080';
 
-  // LOCAL BACKEND - For Lounge-specific APIs (staff, bookings)
-  // Android Emulator:
-  // static const String localBaseUrl = 'http://10.0.2.2:8080';
-
-  // iOS Simulator (uncomment below and comment above):
-  // static const String localBaseUrl = 'http://localhost:8080';
-
-  // Physical Device - Using your computer's Wi-Fi IP:
-  static const String localBaseUrl = 'http://192.168.43.180:8080';
-
-  // Default base URL for backward compatibility
-  static const String baseUrl = choreoBaseUrl;
+  // Kept for backward compatibility
+  static const String choreoBaseUrl = localBaseUrl;
+  static const String baseUrl = localBaseUrl;
 
   // API Endpoints
   static const String sendOtpEndpoint = '/api/v1/auth/send-otp';
@@ -34,8 +27,8 @@ class ApiConfig {
   static const String logoutEndpoint = '/api/v1/auth/logout';
   static const String staffEndpoint = '/api/v1/staff';
 
-  // Helper methods to get the correct base URL
-  static String getAuthBaseUrl() => choreoBaseUrl;
+  // Helper methods to get the correct base URL (all point to local)
+  static String getAuthBaseUrl() => localBaseUrl;
   static String getLoungeBaseUrl() => localBaseUrl;
 
   // Full URLs - Auth APIs use Choreo

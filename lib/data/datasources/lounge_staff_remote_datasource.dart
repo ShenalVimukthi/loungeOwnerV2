@@ -84,13 +84,14 @@ class LoungeStaffRemoteDataSourceImpl implements LoungeStaffRemoteDataSource {
       final baseUrl = ApiConfig.getLoungeBaseUrl();
       final endpoint = '/api/v1/lounges/$loungeId/staff/direct-add';
       final fullUrl = '$baseUrl$endpoint';
-      
+
       print('📤 [LOUNGE API] Adding staff to lounge: $loungeId');
       print('📤 [LOUNGE API] Full URL: $fullUrl');
       print('📤 [LOUNGE API] Base URL: $baseUrl');
       print('📤 [LOUNGE API] Endpoint: $endpoint');
-      print('📤 [LOUNGE API] Staff data: fullName=$fullName, nic=$nicNumber, phone=$phone, email=$email, hiredDate=$hiredDate');
-      
+      print(
+          '📤 [LOUNGE API] Staff data: fullName=$fullName, nic=$nicNumber, phone=$phone, email=$email, hiredDate=$hiredDate');
+
       // Check if we have auth token
       final token = await _secureStorage.read(key: 'access_token');
       if (token != null) {
@@ -182,15 +183,17 @@ class LoungeStaffRemoteDataSourceImpl implements LoungeStaffRemoteDataSource {
         );
       }
 
-      final data = response.data as Map<String, dynamic>;
-      final staffList = data['staff'] as List<dynamic>? ?? [];
-
-      return staffList
-          .map(
-              (json) => LoungeStaffModel.fromJson(json as Map<String, dynamic>))
-          .toList();
+      final staffList = _extractStaffList(response.data);
+      return staffList.map((json) => LoungeStaffModel.fromJson(json)).toList();
     } on DioException catch (e) {
       throw _handleDioError(e);
+    } on AppException {
+      rethrow;
+    } catch (e) {
+      throw ServerException(
+        'Failed to parse staff data from response',
+        'PARSE_ERROR',
+      );
     }
   }
 
@@ -215,15 +218,17 @@ class LoungeStaffRemoteDataSourceImpl implements LoungeStaffRemoteDataSource {
         );
       }
 
-      final data = response.data as Map<String, dynamic>;
-      final staffList = data['staff'] as List<dynamic>? ?? [];
-
-      return staffList
-          .map(
-              (json) => LoungeStaffModel.fromJson(json as Map<String, dynamic>))
-          .toList();
+      final staffList = _extractStaffList(response.data);
+      return staffList.map((json) => LoungeStaffModel.fromJson(json)).toList();
     } on DioException catch (e) {
       throw _handleDioError(e);
+    } on AppException {
+      rethrow;
+    } catch (e) {
+      throw ServerException(
+        'Failed to parse staff data from response',
+        'PARSE_ERROR',
+      );
     }
   }
 
@@ -281,7 +286,9 @@ class LoungeStaffRemoteDataSourceImpl implements LoungeStaffRemoteDataSource {
       } else if (statusCode == 409) {
         // Conflict - usually duplicate entry
         return ServerException(
-          message.isNotEmpty ? message : 'This staff member already exists or there is a conflict with the data',
+          message.isNotEmpty
+              ? message
+              : 'This staff member already exists or there is a conflict with the data',
           code ?? 'CONFLICT',
           statusCode,
         );
@@ -295,5 +302,33 @@ class LoungeStaffRemoteDataSourceImpl implements LoungeStaffRemoteDataSource {
     }
 
     return NetworkException(error.message ?? 'Network error');
+  }
+
+  List<Map<String, dynamic>> _extractStaffList(dynamic responseData) {
+    if (responseData is List) {
+      return responseData.whereType<Map<String, dynamic>>().toList();
+    }
+
+    if (responseData is Map<String, dynamic>) {
+      final dynamic unwrapped = responseData['staff'] ??
+          responseData['data'] ??
+          responseData['result'];
+
+      if (unwrapped is List) {
+        return unwrapped.whereType<Map<String, dynamic>>().toList();
+      }
+
+      if (unwrapped is Map<String, dynamic>) {
+        final dynamic nestedList = unwrapped['staff'] ?? unwrapped['data'];
+        if (nestedList is List) {
+          return nestedList.whereType<Map<String, dynamic>>().toList();
+        }
+      }
+    }
+
+    throw const ServerException(
+      'Failed to parse staff data from response',
+      'PARSE_ERROR',
+    );
   }
 }

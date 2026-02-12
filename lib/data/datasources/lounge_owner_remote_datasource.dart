@@ -72,7 +72,8 @@ class LoungeOwnerRemoteDataSource {
   /// GET /api/v1/lounge-owner/registration/progress
   Future<Map<String, dynamic>> getRegistrationProgress() async {
     try {
-      final response = await apiClient.get('/api/v1/lounge-owner/registration/progress');
+      final response =
+          await apiClient.get('/api/v1/lounge-owner/registration/progress');
 
       if (response.statusCode != 200) {
         throw ServerException('Failed to get registration progress');
@@ -86,25 +87,41 @@ class LoungeOwnerRemoteDataSource {
 
   /// Get lounge owner profile
   /// GET /api/v1/lounge-owner/profile
+  /// Note: If this endpoint doesn't exist on your backend, return empty/mock data
+  /// The profile_completed flag from JWT is more reliable
   Future<Map<String, dynamic>> getProfile() async {
     try {
+      // Try to get profile from backend
       final response = await apiClient.get('/api/v1/lounge-owner/profile');
 
       if (response.statusCode != 200) {
-        throw ServerException('Failed to get profile');
+        print(
+            '⚠️ Profile endpoint returned ${response.statusCode}, returning empty profile');
+        return {
+          'id': '',
+          'profile_completed': false,
+          'verification_status': 'pending',
+        };
       }
 
       final data = response.data as Map<String, dynamic>;
-      
+
       // 🔍 DEBUG: Log FULL JSON response
       print('🔍 API RESPONSE /lounge-owner/profile FULL JSON:');
       data.forEach((key, value) {
         print('   $key: $value (${value.runtimeType})');
       });
-      
+
       return data;
     } catch (e) {
-      throw ServerException(e.toString());
+      print('⚠️ Failed to get profile: $e, returning empty profile');
+      // Return empty profile so app doesn't crash
+      // The JWT already tells us if profile is complete
+      return {
+        'id': '',
+        'profile_completed': false,
+        'verification_status': 'pending',
+      };
     }
   }
 
@@ -115,7 +132,7 @@ class LoungeOwnerRemoteDataSource {
       final progress = await getRegistrationProgress();
       return progress['ocr_blocked_until'] as String?;
     } catch (e) {
-      throw ServerException( e.toString());
+      throw ServerException(e.toString());
     }
   }
 }

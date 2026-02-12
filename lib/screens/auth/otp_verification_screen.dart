@@ -154,31 +154,60 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen>
         '   isNewUser (from backend): $isNewUser',
       );
 
-      // ✅ Check if user is already registered as lounge owner or lounge staff
+      // ✅ SIMPLIFIED ROUTING LOGIC FOR EXISTING VS NEW USERS
       final hasLoungeOwnerRole = roles.contains('lounge_owner');
       final hasLoungeStaffRole = roles.contains('lounge_staff');
-      
-      // 🔥 DETERMINE IF THIS IS TRULY A NEW USER WHO NEEDS ROLE SELECTION
-      // A user needs role selection if:
-      // 1. Backend says isNewUser = true, OR
-      // 2. Profile not completed AND no registration step started (truly fresh user), OR
-      // 3. No lounge-related roles assigned yet
-      final needsRoleSelection = isNewUser || 
-          (!profileCompleted && (registrationStep == null || registrationStep.isEmpty)) ||
-          (!hasLoungeOwnerRole && !hasLoungeStaffRole);
+      final isExistingUser = hasLoungeOwnerRole || hasLoungeStaffRole;
 
-      _logger.i('🔍 needsRoleSelection: $needsRoleSelection');
+      // Check if profile is actually complete
+      // registrationStep == 'completed' means profile is complete (even if flag says false)
+      final isProfileActuallyComplete =
+          profileCompleted || registrationStep == 'completed';
 
-      if (needsRoleSelection && !profileCompleted) {
+      _logger.i(
+        '🔍 User Status Check:\n'
+        '   hasLoungeOwnerRole: $hasLoungeOwnerRole\n'
+        '   hasLoungeStaffRole: $hasLoungeStaffRole\n'
+        '   isExistingUser: $isExistingUser\n'
+        '   profileCompleted: $profileCompleted\n'
+        '   registrationStep: $registrationStep\n'
+        '   isProfileActuallyComplete: $isProfileActuallyComplete',
+      );
+
+      // ROUTE 1: Existing user (lounge owner or staff) with COMPLETED profile → DASHBOARD
+      if (isExistingUser && isProfileActuallyComplete) {
+        _logger.i(
+            '✅ EXISTING USER with completed profile (registrationStep=$registrationStep) → DASHBOARD');
+        if (!mounted) return;
+
+        Navigator.of(context).pushNamedAndRemoveUntil(
+          AppConstants.homeRoute,
+          (route) => false,
+        );
+      }
+      // ROUTE 2: Existing lounge owner with INCOMPLETE profile → Continue Registration
+      else if (hasLoungeOwnerRole && !isProfileActuallyComplete) {
+        _logger.i(
+            '✅ EXISTING LOUNGE OWNER with incomplete profile → Continue registration');
+        if (!mounted) return;
+
+        Navigator.of(context).pushNamedAndRemoveUntil(
+          '/lounge-owner-registration',
+          (route) => false,
+          arguments: {'userId': userId},
+        );
+      }
+      // ROUTE 3: NEW USER (no lounge role) → Role Selection
+      else if (!isExistingUser) {
+        _logger.i('✅ NEW USER → ROLE SELECTION');
+
         // Reset registration data for new users
-        _logger.i('New user detected - resetting registration provider');
         final registrationProvider = Provider.of<RegistrationProvider>(
           context,
           listen: false,
         );
         registrationProvider.reset();
 
-        _logger.i('✅ Navigating to ROLE SELECTION');
         if (!mounted) return;
 
         Navigator.pushReplacement(
@@ -187,28 +216,11 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen>
             builder: (context) => RoleSelectionScreen(userId: userId),
           ),
         );
-      } else if ((hasLoungeOwnerRole || hasLoungeStaffRole) && profileCompleted) {
-        // Returning user with completed profile - go to dashboard
-        _logger.i('✅ Navigating to DASHBOARD (profile completed)');
-        if (!mounted) return;
-
-        Navigator.of(context).pushNamedAndRemoveUntil(
-          AppConstants.homeRoute,
-          (route) => false,
-        );
-      } else if (hasLoungeOwnerRole && !profileCompleted && registrationStep != null && registrationStep.isNotEmpty) {
-        // Returning user who already started lounge owner registration - continue registration
-        _logger.i('✅ Navigating to LOUNGE OWNER REGISTRATION (continuing from step: $registrationStep)');
-        if (!mounted) return;
-
-        Navigator.of(context).pushNamedAndRemoveUntil(
-          '/lounge-owner-registration',
-          (route) => false,
-          arguments: {'userId': userId},
-        );
-      } else {
-        // Fallback - show role selection
-        _logger.i('✅ Navigating to ROLE SELECTION (fallback)');
+      }
+      // FALLBACK: Unexpected state
+      else {
+        _logger
+            .w('⚠️ UNEXPECTED STATE - routing to ROLE SELECTION as fallback');
         if (!mounted) return;
 
         Navigator.pushReplacement(

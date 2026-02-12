@@ -23,12 +23,17 @@ class LoungeStaffModel extends LoungeStaff {
 
   /// Create model from JSON (from API response)
   factory LoungeStaffModel.fromJson(Map<String, dynamic> json) {
+    final fullName = (json['full_name'] ?? json['first_name'] ?? '') as String;
+    final userId = (json['user_id'] ?? json['userId'] ?? '') as String;
+    final loungeId = (json['lounge_id'] ?? json['loungeId'] ?? '') as String;
+    final nicNumber = (json['nic_number'] ?? json['nicNumber'] ?? '') as String;
+
     return LoungeStaffModel(
       id: json['id'] as String,
-      userId: json['user_id'] as String,
-      loungeId: json['lounge_id'] as String,
-      fullName: json['full_name'] as String,
-      nicNumber: json['nic_number'] as String,
+      userId: userId,
+      loungeId: loungeId,
+      fullName: fullName,
+      nicNumber: nicNumber,
       email: json['email'] as String?,
       phone: json['phone'] as String?,
       profileCompleted: json['profile_completed'] as bool? ?? false,

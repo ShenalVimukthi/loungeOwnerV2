@@ -14,40 +14,49 @@ class StaffListPage extends StatefulWidget {
 
 class _StaffListPageState extends State<StaffListPage> {
   String _selectedFilter = 'all'; // all, approved, pending
+  String? _selectedLoungeId; // Track selected lounge
 
   @override
   void initState() {
     super.initState();
     // Schedule the load after the widget is built and has context access
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadStaffList();
+      _initializeLounges();
     });
+  }
+
+  Future<void> _initializeLounges() async {
+    final registrationProvider = context.read<RegistrationProvider>();
+
+    // Load lounges if not already loaded
+    if (registrationProvider.myLounges.isEmpty) {
+      await registrationProvider.loadMyLounges();
+    }
+
+    // Set the first lounge as selected
+    if (registrationProvider.myLounges.isNotEmpty) {
+      setState(() {
+        _selectedLoungeId = registrationProvider.myLounges.first.id;
+      });
+      _loadStaffList();
+    }
   }
 
   Future<void> _loadStaffList() async {
     final staffProvider = context.read<LoungeStaffProvider>();
-    final registrationProvider = context.read<RegistrationProvider>();
 
-    // Get the first lounge ID from owner's lounges
-    final lounges = registrationProvider.myLounges;
-    if (lounges.isEmpty) {
-      // Load lounges first if not loaded
-      await registrationProvider.loadMyLounges();
+    // Use the selected lounge ID
+    if (_selectedLoungeId == null) {
+      return; // No lounge selected yet
     }
 
-    final firstLoungeId = registrationProvider.myLounges.isNotEmpty
-        ? registrationProvider.myLounges.first.id
-        : null;
-
-    if (firstLoungeId != null) {
-      if (_selectedFilter == 'all') {
-        await staffProvider.getStaffByLounge(loungeId: firstLoungeId);
-      } else {
-        await staffProvider.getStaffByApprovalStatus(
-          loungeId: firstLoungeId,
-          approvalStatus: _selectedFilter,
-        );
-      }
+    if (_selectedFilter == 'all') {
+      await staffProvider.getStaffByLounge(loungeId: _selectedLoungeId!);
+    } else {
+      await staffProvider.getStaffByApprovalStatus(
+        loungeId: _selectedLoungeId!,
+        approvalStatus: _selectedFilter,
+      );
     }
   }
 
@@ -87,13 +96,13 @@ class _StaffListPageState extends State<StaffListPage> {
           ),
         ],
       ),
-      body: Consumer<LoungeStaffProvider>(
-        builder: (context, provider, _) {
-          if (provider.isLoading) {
+      body: Consumer2<LoungeStaffProvider, RegistrationProvider>(
+        builder: (context, staffProvider, registrationProvider, _) {
+          if (staffProvider.isLoading) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          if (provider.error != null) {
+          if (staffProvider.error != null) {
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -101,7 +110,8 @@ class _StaffListPageState extends State<StaffListPage> {
                   const Icon(Icons.error_outline,
                       size: 48, color: AppColors.error),
                   const SizedBox(height: 16),
-                  Text(provider.error!, style: const TextStyle(fontSize: 16)),
+                  Text(staffProvider.error!,
+                      style: const TextStyle(fontSize: 16)),
                   const SizedBox(height: 16),
                   ElevatedButton(
                     onPressed: _loadStaffList,
@@ -112,7 +122,7 @@ class _StaffListPageState extends State<StaffListPage> {
             );
           }
 
-          final staffList = provider.staffList;
+          final staffList = staffProvider.staffList;
 
           if (staffList.isEmpty) {
             return Center(
@@ -141,25 +151,75 @@ class _StaffListPageState extends State<StaffListPage> {
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
+                // Lounge Selection Dropdown
+                Container(
+                  margin: const EdgeInsets.only(bottom: 20),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: DropdownButton<String>(
+                    isExpanded: true,
+                    underline: Container(),
+                    hint: const Text('Select Lounge'),
+                    value: _selectedLoungeId,
+                    items: registrationProvider.myLounges.map((lounge) {
+                      return DropdownMenuItem<String>(
+                        value: lounge.id,
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.location_on_outlined,
+                              size: 18,
+                              color: AppColors.primary,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                lounge.loungeName,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      if (value != null) {
+                        setState(() {
+                          _selectedLoungeId = value;
+                        });
+                        _loadStaffList();
+                      }
+                    },
+                  ),
+                ),
+                // Staff list content
                 if (_selectedFilter == 'pending') ...[
                   const SectionTitle(title: 'Pending Approval'),
-                  ...provider.pendingStaff
+                  ...staffProvider.pendingStaff
                       .map((staff) => StaffCard(staff: staff)),
                 ],
                 if (_selectedFilter == 'approved') ...[
                   const SectionTitle(title: 'Approved Staff'),
-                  ...provider.approvedStaff
+                  ...staffProvider.approvedStaff
                       .map((staff) => StaffCard(staff: staff)),
                 ],
                 if (_selectedFilter == 'all') ...[
-                  if (provider.pendingStaff.isNotEmpty) ...[
+                  if (staffProvider.pendingStaff.isNotEmpty) ...[
                     const SectionTitle(title: 'Pending Approval'),
-                    ...provider.pendingStaff
+                    ...staffProvider.pendingStaff
                         .map((staff) => StaffCard(staff: staff)),
                     const SizedBox(height: 24),
                   ],
                   const SectionTitle(title: 'Active Staff'),
-                  ...provider.activeStaff
+                  ...staffProvider.activeStaff
                       .map((staff) => StaffCard(staff: staff)),
                 ],
               ],
