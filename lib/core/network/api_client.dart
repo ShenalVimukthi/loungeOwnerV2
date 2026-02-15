@@ -24,6 +24,13 @@ class ApiClient {
     // Add interceptors
     _dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) async {
+        final skipAuthHeader = options.headers['X-Skip-Auth'];
+        final skipAuth = skipAuthHeader == true || skipAuthHeader == 'true';
+        if (skipAuth) {
+          options.headers.remove('X-Skip-Auth');
+          return handler.next(options);
+        }
+
         // Use cached tokens first, fallback to storage
         _cachedTokens ??= await _authLocalDataSource.getTokens();
         final tokens = _cachedTokens;
@@ -153,6 +160,16 @@ class ApiClient {
   Future<Response> get(String path,
       {Map<String, dynamic>? queryParameters}) async {
     return await _dio.get(path, queryParameters: queryParameters);
+  }
+
+  // Public GET request (no auth)
+  Future<Response> getPublic(String path,
+      {Map<String, dynamic>? queryParameters}) async {
+    return await _dio.get(
+      path,
+      queryParameters: queryParameters,
+      options: Options(headers: {'X-Skip-Auth': 'true'}),
+    );
   }
 
   // POST request

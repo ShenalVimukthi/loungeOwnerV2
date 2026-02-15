@@ -90,6 +90,9 @@ class RegistrationProvider with ChangeNotifier {
 
   List<Lounge> get myLounges => _myLounges;
 
+  List<Lounge> get verifiedLounges =>
+      _myLounges.where((lounge) => lounge.isVerified).toList();
+
   // Pending lounge submission (stored locally until account is approved)
   bool _hasPendingLounge = false;
   List<String> _pendingLoungePhotoUrls = [];

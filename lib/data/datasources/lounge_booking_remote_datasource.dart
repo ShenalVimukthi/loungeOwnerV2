@@ -1,15 +1,13 @@
 import 'package:dio/dio.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../models/lounge_booking_model.dart';
 import '../../core/error/exceptions.dart';
 import '../../core/network/api_client.dart';
-import '../../config/api_config.dart';
 
 /// Remote Data Source: Lounge Booking API
 /// Handles all lounge booking-related API calls according to backend documentation
 abstract class LoungeBookingRemoteDataSource {
   /// Get bookings for lounge owner
-  /// GET /api/v1/lounge-bookings/owner
+  /// GET /api/v1/lounges/:lounge_id/bookings
   Future<List<LoungeBookingModel>> getOwnerBookings({
     String? loungeId,
     String? status,
@@ -17,8 +15,10 @@ abstract class LoungeBookingRemoteDataSource {
   });
 
   /// Get today's bookings (Staff view)
-  /// GET /api/v1/lounge-bookings/today
-  Future<List<LoungeBookingModel>> getTodayBookings();
+  /// GET /api/v1/lounges/:lounge_id/bookings/today
+  Future<List<LoungeBookingModel>> getTodayBookings({
+    String? loungeId,
+  });
 
   /// Get my bookings (Passenger view)
   /// GET /api/v1/lounge-bookings/my-bookings
@@ -43,29 +43,8 @@ abstract class LoungeBookingRemoteDataSource {
 class LoungeBookingRemoteDataSourceImpl
     implements LoungeBookingRemoteDataSource {
   final ApiClient apiClient;
-  late final Dio _loungeDio;
-  final _secureStorage = const FlutterSecureStorage();
 
   LoungeBookingRemoteDataSourceImpl({required this.apiClient}) {
-    _loungeDio = Dio(BaseOptions(
-      baseUrl: ApiConfig.getLoungeBaseUrl(),
-      connectTimeout: ApiConfig.connectTimeout,
-      receiveTimeout: ApiConfig.receiveTimeout,
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-    ));
-
-    _loungeDio.interceptors.add(InterceptorsWrapper(
-      onRequest: (options, handler) async {
-        final token = await _secureStorage.read(key: 'access_token');
-        if (token != null) {
-          options.headers['Authorization'] = 'Bearer \$token';
-        }
-        return handler.next(options);
-      },
-    ));
   }
 
   @override
@@ -76,14 +55,18 @@ class LoungeBookingRemoteDataSourceImpl
   }) async {
     try {
       final queryParameters = <String, dynamic>{};
-      if (loungeId != null) queryParameters['lounge_id'] = loungeId;
       if (status != null) queryParameters['status'] = status;
       if (date != null) queryParameters['date'] = date;
 
-      final response = await _loungeDio.get(
-        '/api/v1/lounge-bookings/owner',
-        queryParameters: queryParameters,
-      );
+      final response = loungeId != null
+          ? await apiClient.get(
+              '/api/v1/lounges/$loungeId/bookings',
+              queryParameters: queryParameters,
+            )
+          : await apiClient.get(
+              '/api/v1/lounge-bookings/owner',
+              queryParameters: queryParameters,
+            );
 
       if (response.data == null) {
         throw const ServerException(
@@ -94,9 +77,17 @@ class LoungeBookingRemoteDataSourceImpl
       }
 
       final data = response.data as Map<String, dynamic>;
-      final lounges = data['lounges'] as List<dynamic>? ?? [];
+      final bookingsList = data['bookings'] as List<dynamic>? ?? [];
 
-      // Flatten bookings from all lounges
+      if (bookingsList.isNotEmpty) {
+        return bookingsList
+            .map((json) =>
+                LoungeBookingModel.fromJson(json as Map<String, dynamic>))
+            .toList();
+      }
+
+      // Legacy response: grouped by lounge
+      final lounges = data['lounges'] as List<dynamic>? ?? [];
       final allBookings = <LoungeBookingModel>[];
       for (final lounge in lounges) {
         final loungeData = lounge as Map<String, dynamic>;
@@ -105,7 +96,6 @@ class LoungeBookingRemoteDataSourceImpl
 
         for (final booking in bookings) {
           final bookingMap = booking as Map<String, dynamic>;
-          // Add lounge_name to each booking for convenience
           bookingMap['lounge_name'] = loungeName;
           allBookings.add(LoungeBookingModel.fromJson(bookingMap));
         }
@@ -118,9 +108,13 @@ class LoungeBookingRemoteDataSourceImpl
   }
 
   @override
-  Future<List<LoungeBookingModel>> getTodayBookings() async {
+  Future<List<LoungeBookingModel>> getTodayBookings({
+    String? loungeId,
+  }) async {
     try {
-      final response = await _loungeDio.get('/api/v1/lounge-bookings/today');
+        final response = loungeId != null
+          ? await apiClient.get('/api/v1/lounges/$loungeId/bookings/today')
+          : await apiClient.get('/api/v1/lounge-bookings/today');
 
       if (response.data == null) {
         throw const ServerException(
@@ -152,7 +146,7 @@ class LoungeBookingRemoteDataSourceImpl
       if (status != null) queryParameters['status'] = status;
       if (page != null) queryParameters['page'] = page;
 
-      final response = await _loungeDio.get(
+      final response = await apiClient.get(
         '/api/v1/lounge-bookings/my-bookings',
         queryParameters: queryParameters,
       );
@@ -180,7 +174,7 @@ class LoungeBookingRemoteDataSourceImpl
   @override
   Future<List<LoungeBookingModel>> getUpcomingBookings() async {
     try {
-      final response = await _loungeDio.get('/api/v1/lounge-bookings/upcoming');
+      final response = await apiClient.get('/api/v1/lounge-bookings/upcoming');
 
       if (response.data == null) {
         throw const ServerException(
@@ -205,8 +199,8 @@ class LoungeBookingRemoteDataSourceImpl
   @override
   Future<LoungeBookingModel> getBookingById(String bookingId) async {
     try {
-      final response =
-          await _loungeDio.get('/api/v1/lounge-bookings/$bookingId');
+        final response =
+          await apiClient.get('/api/v1/lounge-bookings/$bookingId');
 
       if (response.data == null) {
         throw const ServerException(
@@ -225,8 +219,8 @@ class LoungeBookingRemoteDataSourceImpl
   @override
   Future<LoungeBookingModel> getBookingByReference(String reference) async {
     try {
-      final response =
-          await _loungeDio.get('/api/v1/lounge-bookings/reference/$reference');
+        final response =
+          await apiClient.get('/api/v1/lounge-bookings/reference/$reference');
 
       if (response.data == null) {
         throw const ServerException(

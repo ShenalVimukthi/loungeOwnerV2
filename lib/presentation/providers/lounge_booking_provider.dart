@@ -73,14 +73,18 @@ class LoungeBookingProvider extends ChangeNotifier {
     }
   }
 
-  /// Get today's bookings (Staff view)
-  Future<bool> getTodayBookings() async {
+  /// Get today's bookings (Staff/Owner view)
+  Future<bool> getTodayBookings({
+    String? loungeId,
+  }) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     try {
-      final bookingModels = await remoteDataSource.getTodayBookings();
+      final bookingModels = await remoteDataSource.getTodayBookings(
+        loungeId: loungeId,
+      );
       _bookings = bookingModels;
       _isLoading = false;
       notifyListeners();

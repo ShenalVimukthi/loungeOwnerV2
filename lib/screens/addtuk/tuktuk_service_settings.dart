@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:geolocator/geolocator.dart';
 import '../../config/theme_config.dart';
 import '../../presentation/providers/transport_location_provider.dart';
 import '../../presentation/providers/registration_provider.dart';
@@ -17,6 +18,8 @@ class _TukTukServiceSettingsPageState extends State<TukTukServiceSettingsPage> {
   final List<String> vehicleTypes = ["Three Wheeler", "Car", "Van"];
   final Map<String, Map<String, TextEditingController>> _priceControllers = {};
   String? _selectedLoungeId;
+  bool _loadingDialogVisible = false;
+  BuildContext? _loadingDialogContext;
 
   @override
   void initState() {
@@ -26,17 +29,51 @@ class _TukTukServiceSettingsPageState extends State<TukTukServiceSettingsPage> {
     });
   }
 
+  void _showLoadingDialog() {
+    if (!mounted || _loadingDialogVisible) return;
+
+    _loadingDialogVisible = true;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        _loadingDialogContext = dialogContext;
+        return const Center(
+          child: CircularProgressIndicator(color: AppColors.primary),
+        );
+      },
+    ).then((_) {
+      _loadingDialogVisible = false;
+      _loadingDialogContext = null;
+    });
+  }
+
+  void _hideLoadingDialog() {
+    if (!_loadingDialogVisible) return;
+
+    final dialogContext = _loadingDialogContext;
+    if (dialogContext != null) {
+      Navigator.of(dialogContext, rootNavigator: true).pop();
+    } else if (mounted && Navigator.of(context, rootNavigator: true).canPop()) {
+      Navigator.of(context, rootNavigator: true).pop();
+    }
+
+    _loadingDialogVisible = false;
+    _loadingDialogContext = null;
+  }
+
   Future<void> _initialize() async {
     final registrationProvider = context.read<RegistrationProvider>();
-    
+
     // Load lounges if not already loaded
     if (registrationProvider.myLounges.isEmpty) {
       await registrationProvider.loadMyLounges();
     }
 
-    if (registrationProvider.myLounges.isNotEmpty) {
+    final verifiedLounges = registrationProvider.verifiedLounges;
+    if (verifiedLounges.isNotEmpty) {
       setState(() {
-        _selectedLoungeId = registrationProvider.myLounges.first.id;
+        _selectedLoungeId = verifiedLounges.first.id;
       });
       await _loadLocations();
     }
@@ -44,10 +81,10 @@ class _TukTukServiceSettingsPageState extends State<TukTukServiceSettingsPage> {
 
   Future<void> _loadLocations() async {
     if (_selectedLoungeId == null) return;
-    
+
     final provider = context.read<TransportLocationProvider>();
     await provider.loadTransportLocations(_selectedLoungeId!);
-    
+
     // Initialize price controllers
     for (var location in provider.locations) {
       _initializeControllersForLocation(location);
@@ -65,76 +102,323 @@ class _TukTukServiceSettingsPageState extends State<TukTukServiceSettingsPage> {
   }
 
   _addLocationDialog() {
-    if (_selectedLoungeId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select a lounge first'),
-          backgroundColor: AppColors.error,
-        ),
-      );
-      return;
-    }
-
     final TextEditingController locCtrl = TextEditingController();
+    final TextEditingController latCtrl = TextEditingController();
+    final TextEditingController lonCtrl = TextEditingController();
+    bool isLoadingLocation = false;
+    String? selectedLoungeId = _selectedLoungeId;
+
+    final registrationProvider = context.read<RegistrationProvider>();
+    final verifiedLounges = registrationProvider.verifiedLounges;
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text(
-          'Add Location',
-          style: TextStyle(fontWeight: FontWeight.w600),
-        ),
-        content: TextField(
-          controller: locCtrl,
-          textCapitalization: TextCapitalization.words,
-          decoration: InputDecoration(
-            labelText: 'Location Name',
-            hintText: 'e.g., Airport, City Center',
-            prefixIcon: const Icon(Icons.location_on, color: AppColors.primary),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppColors.primary, width: 2),
-            ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text(
+            'Add Location',
+            style: TextStyle(fontWeight: FontWeight.w600),
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text(
-              'Cancel',
-              style: TextStyle(color: AppColors.textSecondary),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              if (locCtrl.text.isNotEmpty) {
-                Navigator.pop(ctx);
-                
-                // Show loading
-                showDialog(
-                  context: context,
-                  barrierDismissible: false,
-                  builder: (context) => const Center(
-                    child: CircularProgressIndicator(color: AppColors.primary),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              spacing: 16,
+              children: [
+                // Lounge Selection Dropdown
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: AppColors.border),
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                );
+                  child: DropdownButton<String>(
+                    isExpanded: true,
+                    underline: const SizedBox(),
+                    hint: const Text('Select Lounge *'),
+                    value: selectedLoungeId,
+                    items: verifiedLounges.map((lounge) {
+                      return DropdownMenuItem<String>(
+                        value: lounge.id,
+                        child: Text(lounge.loungeName),
+                      );
+                    }).toList(),
+                    onChanged: (String? newValue) {
+                      setState(() {
+                        selectedLoungeId = newValue;
+                      });
+                    },
+                  ),
+                ),
+
+                // Location Name Field
+                TextField(
+                  controller: locCtrl,
+                  textCapitalization: TextCapitalization.words,
+                  decoration: InputDecoration(
+                    labelText: 'Location Name *',
+                    hintText: 'e.g., Negombo railway station',
+                    prefixIcon:
+                        const Icon(Icons.location_on, color: AppColors.primary),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide:
+                          const BorderSide(color: AppColors.primary, width: 2),
+                    ),
+                  ),
+                ),
+
+                // Coordinates Section
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.background,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    spacing: 12,
+                    children: [
+                      const Text(
+                        'Coordinates',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      // Latitude Field
+                      TextField(
+                        controller: latCtrl,
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true, signed: true),
+                        decoration: InputDecoration(
+                          labelText: 'Latitude (-90 to 90) *',
+                          hintText: 'e.g., 7.21',
+                          prefixIcon: const Icon(Icons.location_on_outlined,
+                              color: AppColors.primary),
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8)),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: const BorderSide(
+                                color: AppColors.primary, width: 2),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 12),
+                        ),
+                      ),
+                      // Longitude Field
+                      TextField(
+                        controller: lonCtrl,
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true, signed: true),
+                        decoration: InputDecoration(
+                          labelText: 'Longitude (-180 to 180) *',
+                          hintText: 'e.g., 79.84',
+                          prefixIcon: const Icon(Icons.location_on_outlined,
+                              color: AppColors.primary),
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8)),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: const BorderSide(
+                                color: AppColors.primary, width: 2),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 12),
+                        ),
+                      ),
+                      // Get Current Location Button
+                      ElevatedButton.icon(
+                        onPressed: isLoadingLocation
+                            ? null
+                            : () async {
+                                setState(() => isLoadingLocation = true);
+                                try {
+                                  final permission =
+                                      await Geolocator.checkPermission();
+                                  if (permission == LocationPermission.denied) {
+                                    await Geolocator.requestPermission();
+                                  }
+
+                                  if (permission ==
+                                      LocationPermission.deniedForever) {
+                                    if (ctx.mounted) {
+                                      ScaffoldMessenger.of(ctx).showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                              'Location permission is required'),
+                                          backgroundColor: AppColors.error,
+                                        ),
+                                      );
+                                    }
+                                    return;
+                                  }
+
+                                  final Position position =
+                                      await Geolocator.getCurrentPosition(
+                                    desiredAccuracy: LocationAccuracy.best,
+                                  );
+
+                                  latCtrl.text =
+                                      position.latitude.toStringAsFixed(6);
+                                  lonCtrl.text =
+                                      position.longitude.toStringAsFixed(6);
+
+                                  if (ctx.mounted) {
+                                    ScaffoldMessenger.of(ctx).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                            'Location fetched successfully'),
+                                        backgroundColor: AppColors.success,
+                                      ),
+                                    );
+                                  }
+                                } catch (e) {
+                                  if (ctx.mounted) {
+                                    ScaffoldMessenger.of(ctx).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                            'Failed to fetch location: $e'),
+                                        backgroundColor: AppColors.error,
+                                      ),
+                                    );
+                                  }
+                                } finally {
+                                  setState(() => isLoadingLocation = false);
+                                }
+                              },
+                        icon: isLoadingLocation
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                      AppColors.primary),
+                                ),
+                              )
+                            : const Icon(Icons.my_location),
+                        label: const Text('Get Current Location'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary.withOpacity(0.1),
+                          foregroundColor: AppColors.primary,
+                          minimumSize: const Size(double.infinity, 44),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Required Fields Note
+                const Text(
+                  '* Required fields',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(color: AppColors.textSecondary),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                // Validate lounge selection
+                if (selectedLoungeId == null || selectedLoungeId!.isEmpty) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    const SnackBar(
+                      content: Text('Please select a lounge'),
+                      backgroundColor: AppColors.error,
+                    ),
+                  );
+                  return;
+                }
+
+                // Validate inputs
+                if (locCtrl.text.isEmpty) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    const SnackBar(
+                      content: Text('Please enter a location name'),
+                      backgroundColor: AppColors.error,
+                    ),
+                  );
+                  return;
+                }
+
+                double? latitude, longitude;
+                try {
+                  latitude = double.parse(latCtrl.text);
+                  longitude = double.parse(lonCtrl.text);
+
+                  // Validate ranges
+                  if (latitude < -90 || latitude > 90) {
+                    ScaffoldMessenger.of(ctx).showSnackBar(
+                      const SnackBar(
+                        content: Text('Latitude must be between -90 and 90'),
+                        backgroundColor: AppColors.error,
+                      ),
+                    );
+                    return;
+                  }
+
+                  if (longitude < -180 || longitude > 180) {
+                    ScaffoldMessenger.of(ctx).showSnackBar(
+                      const SnackBar(
+                        content: Text('Longitude must be between -180 and 180'),
+                        backgroundColor: AppColors.error,
+                      ),
+                    );
+                    return;
+                  }
+                } catch (e) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    const SnackBar(
+                      content: Text('Please enter valid coordinates'),
+                      backgroundColor: AppColors.error,
+                    ),
+                  );
+                  return;
+                }
+
+                Navigator.pop(ctx); // Close the add location dialog
 
                 final provider = context.read<TransportLocationProvider>();
-                final success = await provider.addTransportLocation(
-                  loungeId: _selectedLoungeId!,
-                  locationName: locCtrl.text.trim(),
-                );
+                bool success = false;
+
+                try {
+                  _showLoadingDialog();
+                  success = await provider.addTransportLocation(
+                    loungeId: selectedLoungeId!,
+                    locationName: locCtrl.text.trim(),
+                    latitude: latitude,
+                    longitude: longitude,
+                  );
+
+                  if (success) {
+                    // Reload locations
+                    await provider.loadTransportLocations(selectedLoungeId!);
+                  }
+                } finally {
+                  _hideLoadingDialog();
+                }
 
                 if (!mounted) return;
-                Navigator.pop(context); // Close loading
 
                 if (success) {
-                  // Initialize controllers for new location
-                  final newLocation = provider.locations.last;
-                  _initializeControllersForLocation(newLocation);
-                  
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text('Location added successfully!'),
@@ -149,18 +433,18 @@ class _TukTukServiceSettingsPageState extends State<TukTukServiceSettingsPage> {
                     ),
                   );
                 }
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: AppColors.textLight,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: AppColors.textLight,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
+              child: const Text('Add'),
             ),
-            child: const Text('Add'),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -260,7 +544,6 @@ class _TukTukServiceSettingsPageState extends State<TukTukServiceSettingsPage> {
         ),
         centerTitle: true,
       ),
-
       floatingActionButton: Padding(
         padding: const EdgeInsets.only(bottom: 80),
         child: FloatingActionButton.extended(
@@ -275,12 +558,69 @@ class _TukTukServiceSettingsPageState extends State<TukTukServiceSettingsPage> {
         ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Lounge Selection Dropdown
+            Consumer<RegistrationProvider>(
+              builder: (context, regProvider, child) {
+                final verifiedLounges = regProvider.verifiedLounges;
+                return Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: DropdownButton<String>(
+                    isExpanded: true,
+                    underline: const SizedBox(),
+                    hint: const Text(
+                      'Select Lounge',
+                      style: TextStyle(color: AppColors.textSecondary),
+                    ),
+                    value: verifiedLounges
+                            .any((lounge) => lounge.id == _selectedLoungeId)
+                        ? _selectedLoungeId
+                        : null,
+                    items: verifiedLounges.map((lounge) {
+                      return DropdownMenuItem<String>(
+                        value: lounge.id,
+                        child: Row(
+                          children: [
+                            const Icon(Icons.store,
+                                size: 20, color: AppColors.primary),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                lounge.loungeName,
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (String? newValue) async {
+                      if (newValue != null) {
+                        setState(() {
+                          _selectedLoungeId = newValue;
+                        });
+                        await _loadLocations();
+                      }
+                    },
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 16),
+
             const Text(
               'Service Locations',
               style: TextStyle(
@@ -290,209 +630,120 @@ class _TukTukServiceSettingsPageState extends State<TukTukServiceSettingsPage> {
               ),
             ),
             const SizedBox(height: 12),
-
             Expanded(
               child: Consumer<TransportLocationProvider>(
                 builder: (context, provider, child) {
-                  if (provider.isLoading && provider.locations.isEmpty) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-
-                  if (provider.locations.isEmpty) {
-                    return Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.location_off,
-                            size: 64,
-                            color: AppColors.textSecondary.withOpacity(0.5),
+                  final content = provider.locations.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.location_off,
+                                size: 64,
+                                color: AppColors.textSecondary.withOpacity(0.5),
+                              ),
+                              const SizedBox(height: 16),
+                              const Text(
+                                'No locations added yet',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w500,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              const Text(
+                                'Tap the button below to add a location',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 16),
-                          const Text(
-                            'No locations added yet',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                              color: AppColors.textSecondary,
+                        )
+                      : ListView.builder(
+                          itemCount: provider.locations.length,
+                          itemBuilder: (context, index) {
+                            final location = provider.locations[index];
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 16),
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: AppColors.surface,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: AppColors.border),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Location name row
+                                  Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(8),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.primary
+                                              .withOpacity(0.1),
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                        ),
+                                        child: const Icon(
+                                          Icons.location_on,
+                                          color: AppColors.primary,
+                                          size: 20,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Text(
+                                          location.locationName,
+                                          style: const TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w600,
+                                            color: AppColors.textPrimary,
+                                          ),
+                                        ),
+                                      ),
+                                      IconButton(
+                                        icon: const Icon(
+                                          Icons.delete_outline,
+                                          color: AppColors.error,
+                                        ),
+                                        onPressed: () =>
+                                            _deleteLocation(location.id),
+                                      ),
+                                    ],
+                                  ),
+
+                                  const SizedBox(height: 16),
+                                  const Divider(height: 1),
+                                  const SizedBox(height: 16),
+
+                                  // Price UI for the 3 vehicles
+                                  _buildPriceSection(location),
+                                ],
+                              ),
+                            );
+                          },
+                        );
+
+                  return Stack(
+                    children: [
+                      Positioned.fill(child: content),
+                      if (provider.isLoading)
+                        Positioned.fill(
+                          child: Container(
+                            color: Colors.black.withOpacity(0.05),
+                            child: const Center(
+                              child: CircularProgressIndicator(),
                             ),
                           ),
-                          const SizedBox(height: 8),
-                          const Text(
-                            'Tap the button below to add a location',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }
-
-                  return ListView.builder(
-                    itemCount: provider.locations.length,
-                    itemBuilder: (context, index) {
-                      final location = provider.locations[index];
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 16),
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: AppColors.surface,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppColors.border),
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Location name row
-                            Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.primary.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: const Icon(
-                                    Icons.location_on,
-                                    color: AppColors.primary,
-                                    size: 20,
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Text(
-                                    location.locationName,
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                      color: AppColors.textPrimary,
-                                    ),
-                                  ),
-                                ),
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.delete_outline,
-                                    color: AppColors.error,
-                                  ),
-                                  onPressed: () => _deleteLocation(location.id),
-                                ),
-                              ],
-                            ),
-
-                            const SizedBox(height: 16),
-                            const Divider(height: 1),
-                            const SizedBox(height: 16),
-
-                            // Price UI for the 3 vehicles
-                            buildPriceFields(location),
-                          ],
-                        ),
-                      );
-                    },
+                    ],
                   );
                 },
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () async {
-                  if (_selectedLoungeId == null) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Please select a lounge first'),
-                        backgroundColor: AppColors.error,
-                      ),
-                    );
-                    return;
-                  }
-
-                  // Show loading
-                  showDialog(
-                    context: context,
-                    barrierDismissible: false,
-                    builder: (context) => const Center(
-                      child: CircularProgressIndicator(color: AppColors.primary),
-                    ),
-                  );
-
-                  // Save all prices to backend
-                  final provider = context.read<TransportLocationProvider>();
-                  bool allSuccess = true;
-
-                  for (var location in provider.locations) {
-                    final controllers = _priceControllers[location.id];
-                    if (controllers == null) continue;
-
-                    final prices = <String, double>{};
-                    controllers.forEach((vehicleType, controller) {
-                      final priceText = controller.text.trim();
-                      if (priceText.isNotEmpty) {
-                        prices[vehicleType] = double.tryParse(priceText) ?? 0.0;
-                      }
-                    });
-
-                    if (prices.isNotEmpty) {
-                      final success = await provider.setLocationPrices(
-                        loungeId: _selectedLoungeId!,
-                        locationId: location.id,
-                        prices: prices,
-                      );
-                      if (!success) allSuccess = false;
-                    }
-                  }
-
-                  if (!mounted) return;
-                  Navigator.pop(context); // Close loading
-
-                  if (allSuccess) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: const Text('Locations and prices saved successfully!'),
-                        backgroundColor: AppColors.success,
-                        behavior: SnackBarBehavior.floating,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                    );
-
-                    // Navigate back to home screen
-                    Navigator.of(context).popUntil((route) => route.isFirst);
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          provider.error ?? 'Failed to save some locations',
-                        ),
-                        backgroundColor: AppColors.error,
-                        behavior: SnackBarBehavior.floating,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                    );
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: AppColors.textLight,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  elevation: 2,
-                  shadowColor: AppColors.primary.withOpacity(0.3),
-                ),
-                child: const Text(
-                  'Save locations',
-                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
-                ),
               ),
             ),
           ],
@@ -501,21 +752,213 @@ class _TukTukServiceSettingsPageState extends State<TukTukServiceSettingsPage> {
     );
   }
 
-  /// Widget builder for price input row
+  /// Widget builder for price section with conditional rendering
+  Widget _buildPriceSection(TransportLocationModel location) {
+    final hasPrices = location.prices != null &&
+        location.prices!.values.any((value) => value > 0);
 
-  Widget buildPriceFields(TransportLocationModel location) {
+    if (hasPrices) {
+      // Show only prices display (read-only)
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.check_circle, color: AppColors.success, size: 20),
+              SizedBox(width: 8),
+              Text(
+                'Prices Set',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.success,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ...location.prices!.entries.map((entry) {
+            // Format the display name from snake_case
+            String displayName = entry.key
+                .replaceAll('_price', '')
+                .replaceAll('_', ' ')
+                .split(' ')
+                .map((word) => word[0].toUpperCase() + word.substring(1))
+                .join(' ');
+
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  Icon(
+                    _getVehicleIcon(entry.key),
+                    size: 20,
+                    color: AppColors.primary,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      displayName,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      'Rs. ${entry.value.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+      );
+    }
+
+    // Show price input fields with Save button
     return Column(
       children: [
-        priceInputRow(location, "Three Wheeler", Icons.electric_rickshaw, AppColors.primary),
+        priceInputRow(location, "Three Wheeler", Icons.electric_rickshaw,
+            AppColors.primary),
         const SizedBox(height: 12),
         priceInputRow(location, "Car", Icons.directions_car, AppColors.primary),
         const SizedBox(height: 12),
-        priceInputRow(location, "Van", Icons.airport_shuttle, AppColors.secondary),
+        priceInputRow(
+            location, "Van", Icons.airport_shuttle, AppColors.secondary),
+        const SizedBox(height: 16),
+
+        // Save button for this location
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: () => _savePricesForLocation(location),
+            icon: const Icon(Icons.save, size: 20),
+            label: const Text('Save Prices'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+          ),
+        ),
       ],
     );
   }
 
-  Widget priceInputRow(TransportLocationModel location, String type, IconData icon, Color color) {
+  IconData _getVehicleIcon(String vehicleType) {
+    switch (vehicleType.toLowerCase()) {
+      case 'three wheeler':
+      case 'three_wheeler_price':
+        return Icons.electric_rickshaw;
+      case 'car':
+      case 'car_price':
+        return Icons.directions_car;
+      case 'van':
+      case 'van_price':
+        return Icons.airport_shuttle;
+      default:
+        return Icons.local_taxi;
+    }
+  }
+
+  Future<void> _savePricesForLocation(TransportLocationModel location) async {
+    if (_selectedLoungeId == null) return;
+
+    final controllers = _priceControllers[location.id];
+    if (controllers == null) return;
+
+    final prices = <String, double>{};
+    controllers.forEach((vehicleType, controller) {
+      final priceText = controller.text.trim();
+      if (priceText.isNotEmpty) {
+        final price = double.tryParse(priceText);
+        if (price != null && price > 0) {
+          prices[vehicleType] = price;
+        }
+      }
+    });
+
+    if (prices.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter at least one price'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    // Show loading
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(color: AppColors.primary),
+      ),
+    );
+
+    final provider = context.read<TransportLocationProvider>();
+    final success = await provider.setLocationPrices(
+      loungeId: _selectedLoungeId!,
+      locationId: location.id,
+      prices: prices,
+    );
+
+    if (!mounted) return;
+    Navigator.of(context, rootNavigator: true).pop(); // Close loading
+
+    if (success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Prices saved successfully!'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(provider.error ?? 'Failed to save prices'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
+  }
+
+  Widget buildPriceFields(TransportLocationModel location) {
+    return Column(
+      children: [
+        priceInputRow(location, "Three Wheeler", Icons.electric_rickshaw,
+            AppColors.primary),
+        const SizedBox(height: 12),
+        priceInputRow(location, "Car", Icons.directions_car, AppColors.primary),
+        const SizedBox(height: 12),
+        priceInputRow(
+            location, "Van", Icons.airport_shuttle, AppColors.secondary),
+      ],
+    );
+  }
+
+  Widget priceInputRow(TransportLocationModel location, String type,
+      IconData icon, Color color) {
     final controller = _priceControllers[location.id]?[type];
     if (controller == null) return const SizedBox.shrink();
 

@@ -24,6 +24,7 @@ class _TodayBookingsScreenState extends State<TodayBookingsScreen>
   late AnimationController _blinkController;
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
+  String? _selectedLoungeId;
 
   @override
   void initState() {
@@ -50,16 +51,25 @@ class _TodayBookingsScreenState extends State<TodayBookingsScreen>
     } else {
       // Owner mode - load all owner bookings
       // Get lounge ID
-      final lounges = registrationProvider.myLounges;
+      final lounges = registrationProvider.verifiedLounges;
       if (lounges.isEmpty) {
         await registrationProvider.loadMyLounges();
       }
 
-      final firstLoungeId = registrationProvider.myLounges.isNotEmpty
-          ? registrationProvider.myLounges.first.id
-          : null;
+      final verifiedLounges = registrationProvider.verifiedLounges;
+      if (_selectedLoungeId == null && verifiedLounges.isNotEmpty) {
+        _selectedLoungeId = verifiedLounges.first.id;
+      }
+      final selectedDate = _selectedDay ?? DateTime.now();
+      final dateFilter =
+          '${selectedDate.year.toString().padLeft(4, '0')}-'
+          '${selectedDate.month.toString().padLeft(2, '0')}-'
+          '${selectedDate.day.toString().padLeft(2, '0')}';
 
-      await bookingProvider.getOwnerBookings(loungeId: firstLoungeId);
+      await bookingProvider.getOwnerBookings(
+        loungeId: _selectedLoungeId,
+        date: dateFilter,
+      );
     }
   }
 
@@ -110,6 +120,70 @@ class _TodayBookingsScreenState extends State<TodayBookingsScreen>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 20),
+
+            if (!widget.isStaffMode)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Consumer<RegistrationProvider>(
+                  builder: (context, registrationProvider, child) {
+                    final verifiedLounges = registrationProvider.verifiedLounges;
+                    if (verifiedLounges.isEmpty) {
+                      return const SizedBox.shrink();
+                    }
+
+                    return Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.border),
+                      ),
+                      child: DropdownButton<String>(
+                        isExpanded: true,
+                        underline: const SizedBox(),
+                        hint: const Text(
+                          'Select Lounge',
+                          style: TextStyle(color: AppColors.textSecondary),
+                        ),
+                        value: verifiedLounges.any(
+                                (lounge) => lounge.id == _selectedLoungeId)
+                            ? _selectedLoungeId
+                            : null,
+                        items: verifiedLounges.map((lounge) {
+                          return DropdownMenuItem<String>(
+                            value: lounge.id,
+                            child: Row(
+                              children: [
+                                const Icon(Icons.store,
+                                    size: 20, color: AppColors.primary),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    lounge.loungeName,
+                                    style: const TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          if (value != null) {
+                            setState(() {
+                              _selectedLoungeId = value;
+                            });
+                            _loadBookings();
+                          }
+                        },
+                      ),
+                    );
+                  },
+                ),
+              ),
 
             // ---------------- Calendar Title ----------------
             Padding(
@@ -214,6 +288,9 @@ class _TodayBookingsScreenState extends State<TodayBookingsScreen>
                       _selectedDay = selectedDay;
                       _focusedDay = focusedDay;
                     });
+                    if (!widget.isStaffMode) {
+                      _loadBookings();
+                    }
                   },
                   onPageChanged: (focusedDay) {
                     _focusedDay = focusedDay;

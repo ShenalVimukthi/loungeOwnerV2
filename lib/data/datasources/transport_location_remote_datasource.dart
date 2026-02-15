@@ -12,6 +12,8 @@ abstract class TransportLocationRemoteDataSource {
   Future<TransportLocationModel> addTransportLocation({
     required String loungeId,
     required String locationName,
+    required double latitude,
+    required double longitude,
   });
 
   /// PUT /api/v1/lounges/:id/transport-locations/:location_id
@@ -93,16 +95,34 @@ class TransportLocationRemoteDataSourceImpl
         );
       }
 
-      final data = response.data as Map<String, dynamic>;
-      final locationsList = data['locations'] as List<dynamic>? ?? [];
+      try {
+        final data = response.data as Map<String, dynamic>;
+        // Backend returns 'transport_locations' key
+        final locationsList = data['transport_locations'] as List<dynamic>? ??
+            data['locations'] as List<dynamic>? ??
+            [];
 
-      return locationsList
-          .map((json) =>
-              TransportLocationModel.fromJson(json as Map<String, dynamic>))
-          .toList();
+        print('📥 Found ${locationsList.length} locations');
+
+        return locationsList
+            .map((json) =>
+                TransportLocationModel.fromJson(json as Map<String, dynamic>))
+            .toList();
+      } catch (parseError) {
+        print('❌ Parse Error: $parseError');
+        print('❌ Response type: ${response.data.runtimeType}');
+        throw ServerException(
+          'Failed to parse locations: $parseError',
+          'PARSE_ERROR',
+          response.statusCode,
+        );
+      }
     } on DioException catch (e) {
       print('❌ DioException: ${e.message}');
       throw _handleDioError(e);
+    } catch (e) {
+      print('❌ Unexpected Error: $e');
+      rethrow;
     }
   }
 
@@ -110,20 +130,26 @@ class TransportLocationRemoteDataSourceImpl
   Future<TransportLocationModel> addTransportLocation({
     required String loungeId,
     required String locationName,
+    required double latitude,
+    required double longitude,
   }) async {
     try {
       print('📤 [API] Adding transport location: $locationName');
       print('📤 [API] Lounge ID: $loungeId');
+      print('📤 [API] Coordinates: ($latitude, $longitude)');
 
       final response = await _dio.post(
         '/api/v1/lounges/transport-locations',
         data: {
-          'LoungeID': loungeId,
-          'Location': locationName,
+          'lounge_id': loungeId,
+          'location': locationName,
+          'latitude': latitude,
+          'longitude': longitude,
         },
       );
 
       print('📥 Response status: ${response.statusCode}');
+      print('📥 Response data: ${response.data}');
 
       if (response.data == null) {
         throw const ServerException(
@@ -133,13 +159,35 @@ class TransportLocationRemoteDataSourceImpl
         );
       }
 
-      final locationData =
-          response.data['location'] ?? response.data['data'] ?? response.data;
-      return TransportLocationModel.fromJson(
-          locationData as Map<String, dynamic>);
+      try {
+        final locationData =
+            (response.data as Map<String, dynamic>).cast<String, dynamic>();
+
+        if (locationData.isEmpty) {
+          print('⚠️ Response data is empty map');
+          throw const ServerException(
+            'Empty response data from server',
+            'EMPTY_RESPONSE_DATA',
+            null,
+          );
+        }
+
+        return TransportLocationModel.fromJson(locationData);
+      } catch (parseError) {
+        print('❌ Parse Error: $parseError');
+        print('❌ Response type: ${response.data.runtimeType}');
+        throw ServerException(
+          'Failed to parse response: $parseError',
+          'PARSE_ERROR',
+          response.statusCode,
+        );
+      }
     } on DioException catch (e) {
       print('❌ DioException: ${e.message}');
       throw _handleDioError(e);
+    } catch (e) {
+      print('❌ Unexpected Error: $e');
+      rethrow;
     }
   }
 
@@ -211,6 +259,7 @@ class TransportLocationRemoteDataSourceImpl
       );
 
       print('📥 Response status: ${response.statusCode}');
+      print('📥 Response data: ${response.data}');
 
       if (response.data == null) {
         throw const ServerException(
@@ -221,12 +270,21 @@ class TransportLocationRemoteDataSourceImpl
       }
 
       final data = response.data as Map<String, dynamic>;
-      final pricesData = data['prices'] as Map<String, dynamic>? ?? {};
 
+      // Backend returns prices with these field names
       final prices = <String, double>{};
-      pricesData.forEach((key, value) {
-        prices[key] = (value as num).toDouble();
-      });
+
+      // Map field names to vehicle types
+      if (data['three_wheeler_price'] != null) {
+        prices['three_wheeler_price'] =
+            (data['three_wheeler_price'] as num).toDouble();
+      }
+      if (data['car_price'] != null) {
+        prices['car_price'] = (data['car_price'] as num).toDouble();
+      }
+      if (data['van_price'] != null) {
+        prices['van_price'] = (data['van_price'] as num).toDouble();
+      }
 
       return prices;
     } on DioException catch (e) {
@@ -245,14 +303,32 @@ class TransportLocationRemoteDataSourceImpl
       print('📤 [API] Setting prices for location: $locationId');
       print('📤 [API] Prices: $prices');
 
+      // Map vehicle types to backend field names
+      final requestData = <String, dynamic>{};
+
+      prices.forEach((vehicleType, price) {
+        final key = vehicleType.toLowerCase().replaceAll(' ', '_') + '_price';
+        requestData[key] = price > 0 ? price : null;
+      });
+
+      // Also support direct field names if provided
+      if (prices.containsKey('three_wheeler_price')) {
+        requestData['three_wheeler_price'] = prices['three_wheeler_price'];
+      }
+      if (prices.containsKey('car_price')) {
+        requestData['car_price'] = prices['car_price'];
+      }
+      if (prices.containsKey('van_price')) {
+        requestData['van_price'] = prices['van_price'];
+      }
+
       final response = await _dio.post(
         '/api/v1/lounges/$loungeId/transport-locations/$locationId/prices',
-        data: {
-          'prices': prices,
-        },
+        data: requestData,
       );
 
       print('📥 Response status: ${response.statusCode}');
+      print('📥 Response data: ${response.data}');
     } on DioException catch (e) {
       print('❌ DioException: ${e.message}');
       throw _handleDioError(e);
@@ -281,15 +357,31 @@ class TransportLocationRemoteDataSourceImpl
       String message = 'An error occurred';
       String? code;
 
+      print('📥 Error Response Data: $data');
+      print('📥 Error Status Code: $statusCode');
+
       if (data is Map<String, dynamic>) {
-        message = data['message'] as String? ?? message;
+        message =
+            data['message'] as String? ?? data['error'] as String? ?? message;
         code = data['code'] as String? ?? data['error'] as String?;
+      } else if (data is String) {
+        message = data;
       }
 
       if (statusCode == 401) {
         return AuthException(message, code);
       } else if (statusCode == 403) {
         return AuthException(message, code ?? 'FORBIDDEN');
+      } else if (statusCode == 404) {
+        // Route not found - likely a backend routing issue
+        print('❓ 404 Not Found: Check if backend route is properly registered');
+        return ServerException(
+          message.isNotEmpty
+              ? message
+              : 'Endpoint not found. Verify backend route is registered.',
+          code ?? 'NOT_FOUND',
+          statusCode,
+        );
       } else if (statusCode == 409) {
         return ServerException(
           message.isNotEmpty

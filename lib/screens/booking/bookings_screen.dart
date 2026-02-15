@@ -16,6 +16,7 @@ class BookingsScreen extends StatefulWidget {
 
 class _BookingsScreenState extends State<BookingsScreen> {
   String _selectedFilter = 'all';
+  String? _selectedLoungeId;
 
   @override
   void initState() {
@@ -30,21 +31,24 @@ class _BookingsScreenState extends State<BookingsScreen> {
     final registrationProvider = context.read<RegistrationProvider>();
 
     // Get lounge ID
-    final lounges = registrationProvider.myLounges;
+    final lounges = registrationProvider.verifiedLounges;
     if (lounges.isEmpty) {
       await registrationProvider.loadMyLounges();
     }
 
-    final firstLoungeId = registrationProvider.myLounges.isNotEmpty
-        ? registrationProvider.myLounges.first.id
-        : null;
+    final verifiedLounges = registrationProvider.verifiedLounges;
+    if (_selectedLoungeId == null && verifiedLounges.isNotEmpty) {
+      _selectedLoungeId = verifiedLounges.first.id;
+    }
+
+    final selectedLoungeId = _selectedLoungeId;
 
     // Load bookings based on filter
     if (_selectedFilter == 'all') {
-      await bookingProvider.getOwnerBookings(loungeId: firstLoungeId);
+      await bookingProvider.getOwnerBookings(loungeId: selectedLoungeId);
     } else {
       await bookingProvider.getOwnerBookings(
-        loungeId: firstLoungeId,
+        loungeId: selectedLoungeId,
         status: _selectedFilter,
       );
     }
@@ -73,9 +77,12 @@ class _BookingsScreenState extends State<BookingsScreen> {
               icon: const Icon(Icons.filter_list, color: AppColors.primary),
               items: const [
                 DropdownMenuItem(value: 'all', child: Text('All')),
-                DropdownMenuItem(value: 'active', child: Text('Active')),
                 DropdownMenuItem(value: 'pending', child: Text('Pending')),
+                DropdownMenuItem(value: 'confirmed', child: Text('Confirmed')),
+                DropdownMenuItem(value: 'checked_in', child: Text('Checked In')),
                 DropdownMenuItem(value: 'completed', child: Text('Completed')),
+                DropdownMenuItem(value: 'cancelled', child: Text('Cancelled')),
+                DropdownMenuItem(value: 'no_show', child: Text('No Show')),
               ],
               onChanged: (value) {
                 if (value != null) {
@@ -90,8 +97,19 @@ class _BookingsScreenState extends State<BookingsScreen> {
         ],
       ),
       body: SafeArea(
-        child: Consumer<LoungeBookingProvider>(
-          builder: (context, bookingProvider, child) {
+        child: Consumer2<LoungeBookingProvider, RegistrationProvider>(
+          builder: (context, bookingProvider, registrationProvider, child) {
+            final verifiedLounges = registrationProvider.verifiedLounges;
+            if (verifiedLounges.isEmpty) {
+              return const Center(
+                child: Text(
+                  'No verified lounges yet',
+                  style:
+                      TextStyle(fontSize: 16, color: AppColors.textSecondary),
+                ),
+              );
+            }
+
             if (bookingProvider.isLoading) {
               return const Center(
                 child: CircularProgressIndicator(color: AppColors.primary),
@@ -177,60 +195,121 @@ class _BookingsScreenState extends State<BookingsScreen> {
               );
             }
 
-            return RefreshIndicator(
-              onRefresh: _loadBookings,
-              color: AppColors.primary,
-              child: ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: bookings.length,
-                itemBuilder: (context, index) {
-                  final booking = bookings[index];
-                  return Card(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    child: ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor: AppColors.primary.withOpacity(0.1),
-                        child: const Icon(
-                          Icons.person,
-                          color: AppColors.primary,
-                        ),
-                      ),
-                      title: Text(
-                        booking.passengerName ?? 'Guest',
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(booking.loungeName ?? 'Lounge'),
-                          Text('Ref: ${booking.bookingReference}'),
-                          Text('Guests: ${booking.guestCount}'),
-                        ],
-                      ),
-                      trailing: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color:
-                              _getStatusColor(booking.status).withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          booking.status,
-                          style: TextStyle(
-                            color: _getStatusColor(booking.status),
-                            fontWeight: FontWeight.w600,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                      isThreeLine: true,
+            return Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.border),
                     ),
-                  );
-                },
-              ),
+                    child: DropdownButton<String>(
+                      isExpanded: true,
+                      underline: const SizedBox(),
+                      hint: const Text(
+                        'Select Lounge',
+                        style: TextStyle(color: AppColors.textSecondary),
+                      ),
+                      value: verifiedLounges
+                              .any((lounge) => lounge.id == _selectedLoungeId)
+                          ? _selectedLoungeId
+                          : null,
+                      items: verifiedLounges.map((lounge) {
+                        return DropdownMenuItem<String>(
+                          value: lounge.id,
+                          child: Row(
+                            children: [
+                              const Icon(Icons.store,
+                                  size: 20, color: AppColors.primary),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  lounge.loungeName,
+                                  style: const TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        if (value != null) {
+                          setState(() {
+                            _selectedLoungeId = value;
+                          });
+                          _loadBookings();
+                        }
+                      },
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: RefreshIndicator(
+                    onRefresh: _loadBookings,
+                    color: AppColors.primary,
+                    child: ListView.builder(
+                      padding: const EdgeInsets.all(16),
+                      itemCount: bookings.length,
+                      itemBuilder: (context, index) {
+                        final booking = bookings[index];
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          child: ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor:
+                                  AppColors.primary.withOpacity(0.1),
+                              child: const Icon(
+                                Icons.person,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                            title: Text(
+                              booking.passengerName ?? 'Guest',
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(booking.loungeName ?? 'Lounge'),
+                                Text('Ref: ${booking.bookingReference}'),
+                                Text('Guests: ${booking.guestCount}'),
+                              ],
+                            ),
+                            trailing: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: _getStatusColor(booking.status)
+                                    .withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                booking.status,
+                                style: TextStyle(
+                                  color: _getStatusColor(booking.status),
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                            isThreeLine: true,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ],
             );
           },
         ),
@@ -249,12 +328,14 @@ class _BookingsScreenState extends State<BookingsScreen> {
     switch (status.toLowerCase()) {
       case 'active':
       case 'confirmed':
+      case 'checked_in':
         return Colors.green;
       case 'pending':
         return Colors.orange;
       case 'completed':
         return Colors.blue;
       case 'cancelled':
+      case 'no_show':
         return Colors.red;
       default:
         return Colors.grey;

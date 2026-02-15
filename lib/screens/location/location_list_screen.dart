@@ -25,14 +25,15 @@ class _LocationListScreenState extends State<LocationListScreen> {
 
   Future<void> _initialize() async {
     final registrationProvider = context.read<RegistrationProvider>();
-    
+
     if (registrationProvider.myLounges.isEmpty) {
       await registrationProvider.loadMyLounges();
     }
 
-    if (registrationProvider.myLounges.isNotEmpty) {
+    final verifiedLounges = registrationProvider.verifiedLounges;
+    if (verifiedLounges.isNotEmpty) {
       setState(() {
-        _selectedLoungeId = registrationProvider.myLounges.first.id;
+        _selectedLoungeId = verifiedLounges.first.id;
       });
       await _loadLocations();
     }
@@ -40,7 +41,9 @@ class _LocationListScreenState extends State<LocationListScreen> {
 
   Future<void> _loadLocations() async {
     if (_selectedLoungeId == null) return;
-    await context.read<TransportLocationProvider>().loadTransportLocations(_selectedLoungeId!);
+    await context
+        .read<TransportLocationProvider>()
+        .loadTransportLocations(_selectedLoungeId!);
   }
 
   Future<void> _deleteLocation(String locationId) async {
@@ -206,186 +209,300 @@ class _LocationListScreenState extends State<LocationListScreen> {
           ),
         ],
       ),
-      body: Consumer<TransportLocationProvider>(
-        builder: (context, provider, child) {
-          if (provider.isLoading && provider.locations.isEmpty) {
-            return const Center(child: CircularProgressIndicator());
-          }
+      body: Consumer2<TransportLocationProvider, RegistrationProvider>(
+        builder: (context, provider, registrationProvider, child) {
+          final verifiedLounges = registrationProvider.verifiedLounges;
 
-          if (provider.locations.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.location_off,
-                    size: 64,
-                    color: AppColors.textSecondary.withOpacity(0.5),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'No locations saved yet',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Add locations from Transportation Service',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                ],
+          if (verifiedLounges.isEmpty) {
+            return const Center(
+              child: Text(
+                'No verified lounges yet',
+                style: TextStyle(fontSize: 16, color: AppColors.textSecondary),
               ),
             );
           }
 
-          return RefreshIndicator(
-            onRefresh: _loadLocations,
-            child: ListView.builder(
-              padding: const EdgeInsets.all(20),
-              itemCount: provider.locations.length,
-              itemBuilder: (context, index) {
-                final location = provider.locations[index];
-                final prices = location.prices ?? {};
+          if (provider.isLoading && provider.locations.isEmpty) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 16),
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: AppColors.surface,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.border),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
-                          blurRadius: 4,
-                          offset: const Offset(0, 2),
+          final content = provider.locations.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.location_off,
+                        size: 64,
+                        color: AppColors.textSecondary.withOpacity(0.5),
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'No locations saved yet',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.textSecondary,
                         ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Location header
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: AppColors.primary.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: const Icon(
-                                Icons.location_on,
-                                color: AppColors.primary,
-                                size: 24,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                location.locationName,
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.textPrimary,
-                                ),
-                              ),
-                            ),
-                            IconButton(
-                              icon: const Icon(
-                                Icons.edit_outlined,
-                                color: AppColors.primary,
-                              ),
-                              onPressed: () => _editLocation(
-                                location.id,
-                                location.locationName,
-                              ),
-                              tooltip: 'Edit',
-                            ),
-                            IconButton(
-                              icon: const Icon(
-                                Icons.delete_outline,
-                                color: AppColors.error,
-                              ),
-                              onPressed: () => _deleteLocation(location.id),
-                              tooltip: 'Delete',
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Add locations from Transportation Service',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              : RefreshIndicator(
+                  onRefresh: _loadLocations,
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(20),
+                    itemCount: provider.locations.length,
+                    itemBuilder: (context, index) {
+                      final location = provider.locations[index];
+                      final prices = location.prices ?? {};
+
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 16),
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: AppColors.surface,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.border),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.05),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
                             ),
                           ],
                         ),
-
-                        if (prices.isNotEmpty) ...[
-                          const SizedBox(height: 16),
-                          const Divider(height: 1),
-                          const SizedBox(height: 16),
-
-                          // Prices
-                          const Text(
-                            'Pricing',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.textPrimary,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Location header
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primary.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: const Icon(
+                                    Icons.location_on,
+                                    color: AppColors.primary,
+                                    size: 24,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    location.locationName,
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.textPrimary,
+                                    ),
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.edit_outlined,
+                                    color: AppColors.primary,
+                                  ),
+                                  onPressed: () => _editLocation(
+                                    location.id,
+                                    location.locationName,
+                                  ),
+                                  tooltip: 'Edit',
+                                ),
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.delete_outline,
+                                    color: AppColors.error,
+                                  ),
+                                  onPressed: () => _deleteLocation(location.id),
+                                  tooltip: 'Delete',
+                                ),
+                              ],
                             ),
-                          ),
-                          const SizedBox(height: 12),
 
-                          ...prices.entries.map((entry) {
-                            final price = entry.value;
-                            if (price <= 0) return const SizedBox.shrink();
-
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 8),
+                            // Coordinates
+                            const SizedBox(height: 12),
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: AppColors.background,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
                               child: Row(
                                 children: [
                                   Icon(
-                                    _getVehicleIcon(entry.key),
-                                    size: 20,
-                                    color: AppColors.primary,
+                                    Icons.public,
+                                    size: 18,
+                                    color: AppColors.textSecondary,
                                   ),
                                   const SizedBox(width: 8),
                                   Expanded(
                                     child: Text(
-                                      entry.key,
+                                      '${location.latitude.toStringAsFixed(4)}, ${location.longitude.toStringAsFixed(4)}',
                                       style: const TextStyle(
-                                        fontSize: 14,
+                                        fontSize: 13,
                                         color: AppColors.textSecondary,
-                                      ),
-                                    ),
-                                  ),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 6,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.primary.withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Text(
-                                      'Rs. ${price.toStringAsFixed(2)}',
-                                      style: const TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w600,
-                                        color: AppColors.primary,
                                       ),
                                     ),
                                   ),
                                 ],
                               ),
-                            );
-                          }),
-                        ],
-                      ],
+                            ),
+
+                            if (prices.isNotEmpty) ...[
+                              const SizedBox(height: 16),
+                              const Divider(height: 1),
+                              const SizedBox(height: 16),
+
+                              // Prices
+                              const Text(
+                                'Pricing',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+
+                              ...prices.entries.map((entry) {
+                                final price = entry.value;
+                                if (price <= 0) return const SizedBox.shrink();
+
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 8),
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        _getVehicleIcon(entry.key),
+                                        size: 20,
+                                        color: AppColors.primary,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          entry.key,
+                                          style: const TextStyle(
+                                            fontSize: 14,
+                                            color: AppColors.textSecondary,
+                                          ),
+                                        ),
+                                      ),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 6,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.primary
+                                              .withOpacity(0.1),
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                        ),
+                                        child: Text(
+                                          'Rs. ${price.toStringAsFixed(2)}',
+                                          style: const TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w600,
+                                            color: AppColors.primary,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }),
+                            ],
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                );
+
+          return Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: DropdownButton<String>(
+                    isExpanded: true,
+                    underline: const SizedBox(),
+                    hint: const Text(
+                      'Select Lounge',
+                      style: TextStyle(color: AppColors.textSecondary),
                     ),
-                  );
-              },
-            ),
+                    value: verifiedLounges
+                            .any((lounge) => lounge.id == _selectedLoungeId)
+                        ? _selectedLoungeId
+                        : null,
+                    items: verifiedLounges.map((lounge) {
+                      return DropdownMenuItem<String>(
+                        value: lounge.id,
+                        child: Row(
+                          children: [
+                            const Icon(Icons.store,
+                                size: 20, color: AppColors.primary),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                lounge.loungeName,
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (String? newValue) async {
+                      if (newValue != null) {
+                        setState(() {
+                          _selectedLoungeId = newValue;
+                        });
+                        await _loadLocations();
+                      }
+                    },
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Stack(
+                  children: [
+                    Positioned.fill(child: content),
+                    if (provider.isLoading)
+                      Positioned.fill(
+                        child: Container(
+                          color: Colors.black.withOpacity(0.05),
+                          child: const Center(
+                            child: CircularProgressIndicator(),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
           );
         },
       ),

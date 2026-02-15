@@ -26,6 +26,8 @@ class ApiConfig {
   static const String updateProfileEndpoint = '/api/v1/user/profile';
   static const String logoutEndpoint = '/api/v1/auth/logout';
   static const String staffEndpoint = '/api/v1/staff';
+  static const String searchTripsEndpoint = '/api/v1/search';
+  static const String bookableTripsEndpoint = '/api/v1/bookable-trips';
 
   // Helper methods to get the correct base URL (all point to local)
   static String getAuthBaseUrl() => localBaseUrl;

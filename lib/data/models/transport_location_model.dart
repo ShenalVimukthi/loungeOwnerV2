@@ -4,6 +4,8 @@ class TransportLocationModel {
   final String id;
   final String loungeId;
   final String locationName;
+  final double latitude;
+  final double longitude;
   final bool isActive;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -13,6 +15,8 @@ class TransportLocationModel {
     required this.id,
     required this.loungeId,
     required this.locationName,
+    required this.latitude,
+    required this.longitude,
     required this.isActive,
     required this.createdAt,
     required this.updatedAt,
@@ -29,13 +33,28 @@ class TransportLocationModel {
       });
     }
 
+    // Determine isActive from multiple possible fields
+    bool isActive = true;
+    if (json['is_active'] is bool) {
+      isActive = json['is_active'] as bool;
+    } else if (json['status'] is String) {
+      isActive = (json['status'] as String).toLowerCase() == 'active';
+    }
+
     return TransportLocationModel(
       id: json['id'] as String,
       loungeId: json['lounge_id'] as String,
-      locationName: json['location_name'] as String,
-      isActive: json['is_active'] as bool? ?? true,
-      createdAt: DateTime.parse(json['created_at'] as String),
-      updatedAt: DateTime.parse(json['updated_at'] as String),
+      locationName:
+          json['location'] as String? ?? json['location_name'] as String? ?? '',
+      latitude: (json['latitude'] as num?)?.toDouble() ?? 0.0,
+      longitude: (json['longitude'] as num?)?.toDouble() ?? 0.0,
+      isActive: isActive,
+      createdAt: json['created_at'] != null
+          ? DateTime.parse(json['created_at'] as String)
+          : DateTime.now(),
+      updatedAt: json['updated_at'] != null
+          ? DateTime.parse(json['updated_at'] as String)
+          : DateTime.now(),
       prices: parsedPrices,
     );
   }
@@ -44,7 +63,9 @@ class TransportLocationModel {
     return {
       'id': id,
       'lounge_id': loungeId,
-      'location_name': locationName,
+      'location': locationName,
+      'latitude': latitude,
+      'longitude': longitude,
       'is_active': isActive,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
@@ -57,6 +78,8 @@ class TransportLocationModel {
       id: id,
       loungeId: loungeId,
       locationName: locationName,
+      latitude: latitude,
+      longitude: longitude,
       isActive: isActive,
       createdAt: createdAt,
       updatedAt: updatedAt,
@@ -69,6 +92,8 @@ class TransportLocationModel {
       id: entity.id,
       loungeId: entity.loungeId,
       locationName: entity.locationName,
+      latitude: entity.latitude,
+      longitude: entity.longitude,
       isActive: entity.isActive,
       createdAt: entity.createdAt,
       updatedAt: entity.updatedAt,

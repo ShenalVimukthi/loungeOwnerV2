@@ -31,9 +31,10 @@ class _DriverListPageState extends State<DriverListPage> {
       await registrationProvider.loadMyLounges();
     }
 
-    if (registrationProvider.myLounges.isNotEmpty) {
+    final verifiedLounges = registrationProvider.verifiedLounges;
+    if (verifiedLounges.isNotEmpty) {
       setState(() {
-        _selectedLoungeId = registrationProvider.myLounges.first.id;
+        _selectedLoungeId = verifiedLounges.first.id;
       });
       _loadDriverList();
     }
@@ -95,6 +96,16 @@ class _DriverListPageState extends State<DriverListPage> {
             );
           }
 
+          final verifiedLounges = registrationProvider.verifiedLounges;
+          if (verifiedLounges.isEmpty) {
+            return const Center(
+              child: Text(
+                'No verified lounges yet',
+                style: TextStyle(fontSize: 16, color: AppColors.textSecondary),
+              ),
+            );
+          }
+
           final driverList = driverProvider.driverList;
 
           if (driverList.isEmpty && _selectedLoungeId != null) {
@@ -136,8 +147,11 @@ class _DriverListPageState extends State<DriverListPage> {
                     isExpanded: true,
                     underline: Container(),
                     hint: const Text('Select Lounge'),
-                    value: _selectedLoungeId,
-                    items: registrationProvider.myLounges.map((lounge) {
+                    value: verifiedLounges
+                            .any((lounge) => lounge.id == _selectedLoungeId)
+                        ? _selectedLoungeId
+                        : null,
+                    items: verifiedLounges.map((lounge) {
                       return DropdownMenuItem<String>(
                         value: lounge.id,
                         child: Row(

@@ -23,9 +23,12 @@ class TransportLocationProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      _locations = await remoteDataSource.getTransportLocations(loungeId);
+      final locations = await remoteDataSource.getTransportLocations(loungeId);
+      _locations = locations;
       _isLoading = false;
       notifyListeners();
+
+      await _refreshLocationPrices(loungeId);
     } on AppException catch (e) {
       _error = e.message;
       _isLoading = false;
@@ -41,6 +44,8 @@ class TransportLocationProvider extends ChangeNotifier {
   Future<bool> addTransportLocation({
     required String loungeId,
     required String locationName,
+    required double latitude,
+    required double longitude,
   }) async {
     _isLoading = true;
     _error = null;
@@ -50,6 +55,8 @@ class TransportLocationProvider extends ChangeNotifier {
       final newLocation = await remoteDataSource.addTransportLocation(
         loungeId: loungeId,
         locationName: locationName,
+        latitude: latitude,
+        longitude: longitude,
       );
 
       _locations.add(newLocation);
@@ -185,6 +192,8 @@ class TransportLocationProvider extends ChangeNotifier {
           id: _locations[index].id,
           loungeId: _locations[index].loungeId,
           locationName: _locations[index].locationName,
+          latitude: _locations[index].latitude,
+          longitude: _locations[index].longitude,
           isActive: _locations[index].isActive,
           createdAt: _locations[index].createdAt,
           updatedAt: DateTime.now(),
@@ -211,5 +220,73 @@ class TransportLocationProvider extends ChangeNotifier {
   void clearError() {
     _error = null;
     notifyListeners();
+  }
+
+  Future<void> _refreshLocationPrices(String loungeId) async {
+    if (_locations.isEmpty) return;
+
+    final updatedLocations = await Future.wait(
+      _locations.map((location) async {
+        final prices = await _safeGetLocationPrices(
+          loungeId: loungeId,
+          locationId: location.id,
+        );
+
+        if (prices == null || prices.isEmpty) {
+          return location;
+        }
+
+        return TransportLocationModel(
+          id: location.id,
+          loungeId: location.loungeId,
+          locationName: location.locationName,
+          latitude: location.latitude,
+          longitude: location.longitude,
+          isActive: location.isActive,
+          createdAt: location.createdAt,
+          updatedAt: location.updatedAt,
+          prices: _normalizePrices(prices),
+        );
+      }),
+    );
+
+    _locations = updatedLocations;
+    notifyListeners();
+  }
+
+  Map<String, double> _normalizePrices(Map<String, double> prices) {
+    final normalized = <String, double>{};
+
+    prices.forEach((key, value) {
+      if (value <= 0) {
+        return;
+      }
+      final normalizedKey = key.toLowerCase();
+      if (normalizedKey.contains('three_wheeler')) {
+        normalized['Three Wheeler'] = value;
+      } else if (normalizedKey.contains('car')) {
+        normalized['Car'] = value;
+      } else if (normalizedKey.contains('van')) {
+        normalized['Van'] = value;
+      } else {
+        normalized[key] = value;
+      }
+    });
+
+    return normalized;
+  }
+
+  Future<Map<String, double>?> _safeGetLocationPrices({
+    required String loungeId,
+    required String locationId,
+  }) async {
+    try {
+      return await remoteDataSource.getLocationPrices(
+        loungeId: loungeId,
+        locationId: locationId,
+      );
+    } catch (_) {
+      return null;
+    }
   }
 }

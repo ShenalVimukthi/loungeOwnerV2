@@ -34,9 +34,10 @@ class _StaffListPageState extends State<StaffListPage> {
     }
 
     // Set the first lounge as selected
-    if (registrationProvider.myLounges.isNotEmpty) {
+    final verifiedLounges = registrationProvider.verifiedLounges;
+    if (verifiedLounges.isNotEmpty) {
       setState(() {
-        _selectedLoungeId = registrationProvider.myLounges.first.id;
+        _selectedLoungeId = verifiedLounges.first.id;
       });
       _loadStaffList();
     }
@@ -122,6 +123,16 @@ class _StaffListPageState extends State<StaffListPage> {
             );
           }
 
+          final verifiedLounges = registrationProvider.verifiedLounges;
+          if (verifiedLounges.isEmpty) {
+            return const Center(
+              child: Text(
+                'No verified lounges yet',
+                style: TextStyle(fontSize: 16, color: AppColors.textSecondary),
+              ),
+            );
+          }
+
           final staffList = staffProvider.staffList;
 
           if (staffList.isEmpty) {
@@ -165,8 +176,11 @@ class _StaffListPageState extends State<StaffListPage> {
                     isExpanded: true,
                     underline: Container(),
                     hint: const Text('Select Lounge'),
-                    value: _selectedLoungeId,
-                    items: registrationProvider.myLounges.map((lounge) {
+                    value: verifiedLounges
+                            .any((lounge) => lounge.id == _selectedLoungeId)
+                        ? _selectedLoungeId
+                        : null,
+                    items: verifiedLounges.map((lounge) {
                       return DropdownMenuItem<String>(
                         value: lounge.id,
                         child: Row(

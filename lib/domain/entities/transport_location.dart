@@ -2,6 +2,8 @@ class TransportLocation {
   final String id;
   final String loungeId;
   final String locationName;
+  final double latitude;
+  final double longitude;
   final bool isActive;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -11,6 +13,8 @@ class TransportLocation {
     required this.id,
     required this.loungeId,
     required this.locationName,
+    required this.latitude,
+    required this.longitude,
     required this.isActive,
     required this.createdAt,
     required this.updatedAt,

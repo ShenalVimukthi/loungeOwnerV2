@@ -12,26 +12,27 @@ class Lounge extends Equatable {
   final String? state;
   final String? country;
   final String? postalCode;
-  final String? latitude;  // Required for map
+  final String? latitude; // Required for map
   final String? longitude; // Required for map
   final String? contactPhone;
   final int? capacity; // Maximum number of people
-  
+
   // Routes that this lounge serves
   final List<LoungeRoute>? routes;
-  
+
   // Pricing (in LKR)
   final String? price1Hour;
   final String? price2Hours;
   final String? price3Hours;
   final String? priceUntilBus;
-  
+
   // Amenities as array of strings
-  final List<String>? amenities; // ["wifi", "ac", "cafeteria", "charging_ports", "entertainment", "parking", "restrooms", "waiting_area"]
-  
+  final List<String>?
+      amenities; // ["wifi", "ac", "cafeteria", "charging_ports", "entertainment", "parking", "restrooms", "waiting_area"]
+
   // Images as array of URLs
   final List<String>? images;
-  
+
   final String status; // pending, active, inactive, suspended
   final bool isOperational;
   final String? averageRating;
@@ -99,9 +100,13 @@ class Lounge extends Equatable {
   /// Check if lounge is pending approval
   bool get isPending => status == 'pending';
 
+  /// Check if lounge is verified/approved
+  bool get isVerified =>
+      status == 'approved' || status == 'active' || status == 'verified';
+
   /// Get the primary photo (first photo in the list)
   String? get primaryPhoto => images?.isNotEmpty == true ? images!.first : null;
-  
+
   Lounge copyWith({
     String? id,
     String? loungeOwnerId,
@@ -167,7 +172,7 @@ class LoungeAmenities {
   static const String parking = 'parking';
   static const String restrooms = 'restrooms';
   static const String waitingArea = 'waiting_area';
-  
+
   // List of all amenity codes
   static const List<String> allCodes = [
     wifi,
@@ -179,7 +184,7 @@ class LoungeAmenities {
     restrooms,
     waitingArea,
   ];
-  
+
   static const Map<String, String> labels = {
     wifi: 'Wi-Fi',
     ac: 'A/C',
@@ -190,7 +195,7 @@ class LoungeAmenities {
     restrooms: 'Rest Rooms',
     waitingArea: 'Waiting Area',
   };
-  
+
   static const Map<String, IconData> icons = {
     wifi: Icons.wifi,
     ac: Icons.ac_unit,
