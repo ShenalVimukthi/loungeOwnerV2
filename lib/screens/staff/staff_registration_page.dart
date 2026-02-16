@@ -5,13 +5,29 @@ import '../../domain/entities/user.dart';
 import '../../presentation/providers/auth_provider.dart';
 import '../../presentation/providers/lounge_staff_provider.dart';
 import '../../presentation/providers/registration_provider.dart';
+import '../../presentation/providers/role_selection_provider.dart';
 import 'staff_registration_status_screen.dart';
 import '../dashboard/lounge_owner_home_screen.dart';
 
 class StaffRegistrationPage extends StatefulWidget {
   final bool isAddedByAdmin;
+  final String? userId; // New user self-registration
+  final String? phoneNumber; // New user phone
+  final String? otp; // New user OTP
+  final String? selectedDistrict;
+  final String? selectedLoungeOwner;
+  final String? selectedLounge;
 
-  const StaffRegistrationPage({super.key, this.isAddedByAdmin = false});
+  const StaffRegistrationPage({
+    super.key,
+    this.isAddedByAdmin = false,
+    this.userId,
+    this.phoneNumber,
+    this.otp,
+    this.selectedDistrict,
+    this.selectedLoungeOwner,
+    this.selectedLounge,
+  });
 
   @override
   State<StaffRegistrationPage> createState() => _StaffRegistrationPageState();
@@ -64,10 +80,111 @@ class _StaffRegistrationPageState extends State<StaffRegistrationPage> {
       if (widget.isAddedByAdmin) {
         // Admin/Lounge Owner adding staff - use the new API
         await _addStaffViaAPI();
+      } else if (widget.userId != null &&
+          widget.phoneNumber != null &&
+          widget.otp != null) {
+        // New user self-registration flow from role selection
+        await _completeNewUserStaffRegistrationWithOTP();
       } else {
-        // Staff self-registration flow - update profile
+        // Existing staff self-registration flow - update profile
         await _completeStaffProfile();
       }
+    }
+  }
+
+  Future<void> _completeNewUserStaffRegistrationWithOTP() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+
+    if (widget.selectedLounge == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select a lounge'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    // Get the lounge ID by searching for the lounge with matching name
+    // Using the RoleSelectionProvider which has fetched all lounges
+    final roleSelectionProvider =
+        Provider.of<RoleSelectionProvider>(context, listen: false);
+
+    String? loungeId;
+    try {
+      final matchingLounge = roleSelectionProvider.lounges.firstWhere(
+        (lounge) => lounge.loungeName == widget.selectedLounge,
+      );
+      loungeId = matchingLounge.id;
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              'Selected lounge not found. Please try again in role selection.'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    // Show loading dialog
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(color: AppColors.primary),
+      ),
+    );
+
+    //Call verifyOtpLoungeStaff endpoint with all required data
+    final navigatorContext = context;
+    final result = await authProvider.verifyOtpLoungeStaff(
+      phoneNumber: widget.phoneNumber!,
+      otp: widget.otp!,
+      loungeId: loungeId,
+      fullName: _nameCtrl.text.trim(),
+      nicNumber: _nicCtrl.text.trim(),
+      email: _emailCtrl.text.trim(),
+    );
+
+    if (!mounted) return;
+    Navigator.pop(navigatorContext); // Close loading dialog
+
+    if (result['success'] == true) {
+      ScaffoldMessenger.of(navigatorContext).showSnackBar(
+        const SnackBar(
+          content: Text('Registration completed successfully!'),
+          backgroundColor: AppColors.success,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.all(Radius.circular(10)),
+          ),
+        ),
+      );
+
+      // Navigate to registration status screen
+      Navigator.pushReplacement(
+        navigatorContext,
+        MaterialPageRoute(
+          builder: (context) => StaffRegistrationStatusScreen(
+            name: _nameCtrl.text.trim(),
+            phone: widget.phoneNumber!,
+            nic: _nicCtrl.text.trim(),
+          ),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(navigatorContext).showSnackBar(
+        SnackBar(
+          content:
+              Text(authProvider.error ?? 'Failed to complete registration'),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
   }
 

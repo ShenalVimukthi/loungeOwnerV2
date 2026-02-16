@@ -207,4 +207,51 @@ class LoungeRemoteDataSource {
       throw ServerException(e.toString());
     }
   }
+
+  /// Get active lounges for staff registration
+  /// GET /api/v1/lounges/active
+  /// Returns lounges with status='active' for staff member to select during registration
+  Future<List<Map<String, dynamic>>> getActiveLounges() async {
+    try {
+      print('📍 Fetching active lounges...');
+      final response = await apiClient.get('/api/v1/lounges/active');
+
+      print('📍 GetActiveLounges Response Status: ${response.statusCode}');
+      print('📍 GetActiveLounges Response Data: ${response.data}');
+
+      if (response.statusCode != 200) {
+        throw ServerException(
+          'Failed to get active lounges - Status: ${response.statusCode}',
+        );
+      }
+
+      // Handle both array response and wrapped response
+      final responseData = response.data;
+      List<dynamic> loungesList;
+
+      if (responseData is List) {
+        loungesList = responseData;
+      } else if (responseData is Map && responseData.containsKey('lounges')) {
+        loungesList = responseData['lounges'] as List? ?? [];
+      } else if (responseData is Map && responseData.containsKey('data')) {
+        loungesList = responseData['data'] as List? ?? [];
+      } else {
+        print('⚠️ Unexpected response format: ${responseData.runtimeType}');
+        loungesList = [];
+      }
+
+      print('📍 Parsed ${loungesList.length} active lounges');
+      return loungesList.map((e) => e as Map<String, dynamic>).toList();
+    } on DioException catch (e) {
+      print('❌ GetActiveLounges DioException: ${e.type}');
+      print('❌ Response Status: ${e.response?.statusCode}');
+      print('❌ Response Data: ${e.response?.data}');
+      final errorMessage =
+          e.response?.data?['message'] ?? e.message ?? 'Unknown error';
+      throw ServerException('Get active lounges failed: $errorMessage');
+    } catch (e) {
+      print('❌ GetActiveLounges Error: $e');
+      throw ServerException(e.toString());
+    }
+  }
 }

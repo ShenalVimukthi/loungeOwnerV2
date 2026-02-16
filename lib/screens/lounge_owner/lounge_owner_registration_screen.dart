@@ -16,8 +16,15 @@ import '../../data/models/route_model.dart';
 
 class LoungeOwnerRegistrationScreen extends StatefulWidget {
   final String userId;
+  final String? phoneNumber; // New user phone
+  final String? otp; // New user OTP
 
-  const LoungeOwnerRegistrationScreen({super.key, required this.userId});
+  const LoungeOwnerRegistrationScreen({
+    super.key,
+    required this.userId,
+    this.phoneNumber,
+    this.otp,
+  });
 
   @override
   State<LoungeOwnerRegistrationScreen> createState() =>

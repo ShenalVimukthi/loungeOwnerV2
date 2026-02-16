@@ -25,7 +25,9 @@ class NoLeadingZeroFormatter extends TextInputFormatter {
 }
 
 class PhoneInputScreen extends StatefulWidget {
-  const PhoneInputScreen({super.key});
+  const PhoneInputScreen({
+    super.key,
+  });
 
   @override
   State<PhoneInputScreen> createState() => _PhoneInputScreenState();
@@ -60,6 +62,7 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
     }
 
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
+
     final success = await authProvider.sendOtp(_completePhoneNumber);
 
     if (!mounted) return;
@@ -77,7 +80,9 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
       // Navigate to OTP verification
       Navigator.of(context).pushNamed(
         AppConstants.otpVerificationRoute,
-        arguments: {'phoneNumber': _completePhoneNumber},
+        arguments: {
+          'phoneNumber': _completePhoneNumber,
+        },
       );
     } else {
       ErrorDialog.show(
@@ -124,7 +129,8 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
                                     shape: BoxShape.circle,
                                     boxShadow: [
                                       BoxShadow(
-                                        color: AppColors.primary.withValues(alpha: 0.3),
+                                        color: AppColors.primary
+                                            .withValues(alpha: 0.3),
                                         blurRadius: 16,
                                         offset: const Offset(0, 8),
                                       ),
@@ -159,8 +165,6 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
                                   color: AppColors.textSecondary,
                                 ),
                               ),
-                              const SizedBox(height: AppSpacing.large),
-
                               // Phone Input Field
                               IntlPhoneField(
                                 controller: _phoneController,
@@ -206,7 +210,8 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
                                   color: AppColors.info.withValues(alpha: 0.08),
                                   borderRadius: BorderRadius.circular(12),
                                   border: Border.all(
-                                    color: AppColors.info.withValues(alpha: 0.3),
+                                    color:
+                                        AppColors.info.withValues(alpha: 0.3),
                                     width: 1,
                                   ),
                                 ),

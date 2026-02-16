@@ -30,6 +30,8 @@ class AuthProvider extends ChangeNotifier {
   User? _user;
   String? _phoneNumber;
   bool _isAuthenticated = false;
+  String _selectedRole =
+      'lounge_owner'; // Store selected role for OTP verification
 
   // Getters
   bool get isLoading => _isLoading;
@@ -81,13 +83,73 @@ class AuthProvider extends ChangeNotifier {
     );
   }
 
-  /// Verify OTP and authenticate
-  /// Returns Map with navigation info
-  Future<Map<String, dynamic>> verifyOtp(String phoneNumber, String otp) async {
+  /// Verify OTP for Lounge Owner registration/login
+  Future<Map<String, dynamic>> verifyOtpLoungeOwner(
+      String phoneNumber, String otp) async {
     _setLoading(true);
     _clearError();
 
-    final result = await verifyOtpUseCase(phoneNumber: phoneNumber, otp: otp);
+    final result = await authRepository.verifyOtpLoungeOwner(
+        phoneNumber: phoneNumber, otp: otp);
+
+    return result.fold(
+      (failure) {
+        _error = _mapFailureToMessage(failure);
+        _setLoading(false);
+        return {'success': false, 'nextRoute': '/otp-verification'};
+      },
+      (verifyResult) {
+        // Update UI state
+        _isAuthenticated = true;
+        _phoneNumber = null;
+
+        // Get user from repository (already saved by repository)
+        authRepository.getCurrentUser().then((user) {
+          _user = user;
+          notifyListeners();
+        });
+
+        _setLoading(false);
+
+        // Determine next route based on registrationStep
+        String nextRoute = '/lounge-owner-registration';
+        if (verifyResult.registrationStep == 'completed') {
+          nextRoute = '/lounge-owner-home';
+        }
+
+        return {
+          'success': true,
+          'userId': verifyResult.user.id,
+          'roles': verifyResult.roles,
+          'nextRoute': nextRoute,
+          'registrationStep': verifyResult.registrationStep,
+          'isNewUser': verifyResult.isNewUser,
+          'profileCompleted': verifyResult.user.profileCompleted,
+        };
+      },
+    );
+  }
+
+  /// Verify OTP for Lounge Staff registration/login
+  Future<Map<String, dynamic>> verifyOtpLoungeStaff({
+    required String phoneNumber,
+    required String otp,
+    required String loungeId,
+    required String fullName,
+    required String nicNumber,
+    required String email,
+  }) async {
+    _setLoading(true);
+    _clearError();
+
+    final result = await authRepository.verifyOtpLoungeStaff(
+      phoneNumber: phoneNumber,
+      otp: otp,
+      loungeId: loungeId,
+      fullName: fullName,
+      nicNumber: nicNumber,
+      email: email,
+    );
 
     return result.fold(
       (failure) {
@@ -110,12 +172,151 @@ class AuthProvider extends ChangeNotifier {
 
         return {
           'success': true,
-          'userId': verifyResult.userId,
+          'userId': verifyResult.user.id,
           'roles': verifyResult.roles,
-          'nextRoute': verifyResult.nextRoute,
+          'nextRoute': '/staff-dashboard',
           'registrationStep': verifyResult.registrationStep,
           'isNewUser': verifyResult.isNewUser,
-          'profileCompleted': verifyResult.profileCompleted,
+          'profileCompleted': verifyResult.user.profileCompleted,
+        };
+      },
+    );
+  }
+
+  /// Verify OTP for Registered Lounge Staff (login flow)
+  Future<Map<String, dynamic>> verifyOtpLoungeStaffRegistered({
+    required String phoneNumber,
+    required String otp,
+  }) async {
+    _setLoading(true);
+    _clearError();
+
+    final result = await authRepository.verifyOtpLoungeStaffRegistered(
+      phoneNumber: phoneNumber,
+      otp: otp,
+    );
+
+    return result.fold(
+      (failure) {
+        _error = _mapFailureToMessage(failure);
+        _setLoading(false);
+        return {'success': false};
+      },
+      (verifyResult) {
+        _isAuthenticated = true;
+        _phoneNumber = null;
+
+        authRepository.getCurrentUser().then((user) {
+          _user = user;
+          notifyListeners();
+        });
+
+        _setLoading(false);
+
+        return {
+          'success': true,
+          'userId': verifyResult.user.id,
+          'roles': verifyResult.roles,
+          'isNewUser': verifyResult.isNewUser,
+          'profileCompleted': verifyResult.user.profileCompleted,
+        };
+      },
+    );
+  }
+
+  /// Set the selected role (lounge_owner or lounge_staff)
+  void setSelectedRole(String role) {
+    _selectedRole = role;
+    notifyListeners();
+  }
+
+  /// Verify OTP and authenticate
+  /// Returns Map with navigation info
+  /// Uses the selected role to determine which endpoint to call
+  Future<Map<String, dynamic>> verifyOtp(String phoneNumber, String otp) async {
+    _setLoading(true);
+    _clearError();
+
+    // If lounge_owner was selected, use the lounge owner endpoint
+    if (_selectedRole == 'lounge_owner') {
+      final result = await authRepository.verifyOtpLoungeOwner(
+        phoneNumber: phoneNumber,
+        otp: otp,
+      );
+
+      return result.fold(
+        (failure) {
+          _error = _mapFailureToMessage(failure);
+          _setLoading(false);
+          return {'success': false, 'nextRoute': '/otp-verification'};
+        },
+        (verifyResult) {
+          // Update UI state
+          _isAuthenticated = true;
+          _phoneNumber = null;
+
+          // Get user from repository (already saved by repository)
+          authRepository.getCurrentUser().then((user) {
+            _user = user;
+            notifyListeners();
+          });
+
+          _setLoading(false);
+
+          // Determine next route based on registrationStep
+          String nextRoute = '/lounge-owner-registration';
+          if (verifyResult.registrationStep == 'completed') {
+            nextRoute = '/lounge-owner-home';
+          }
+
+          return {
+            'success': true,
+            'userId': verifyResult.user.id,
+            'roles': verifyResult.roles,
+            'nextRoute': nextRoute,
+            'registrationStep': verifyResult.registrationStep,
+            'isNewUser': verifyResult.isNewUser,
+            'profileCompleted': verifyResult.user.profileCompleted,
+          };
+        },
+      );
+    }
+
+    // If lounge_staff was selected, use the generic verify OTP endpoint
+    // which returns empty roles for new users
+    final result = await authRepository.verifyOtpGeneric(
+      phoneNumber: phoneNumber,
+      otp: otp,
+    );
+
+    return result.fold(
+      (failure) {
+        _error = _mapFailureToMessage(failure);
+        _setLoading(false);
+        return {'success': false, 'nextRoute': '/otp-verification'};
+      },
+      (verifyResult) {
+        // For staff, don't fully authenticate yet
+        // Store tokens but don't set _isAuthenticated = true until staff details are collected
+        _phoneNumber = phoneNumber;
+
+        // Save tokens for later use
+        authRepository.getCurrentUser().then((user) {
+          _user = user;
+          notifyListeners();
+        });
+
+        _setLoading(false);
+
+        // Navigate to staff registration to collect full details
+        return {
+          'success': true,
+          'nextRoute': '/staff-registration',
+          'phoneNumber': phoneNumber,
+          'userId': verifyResult.user.id,
+          'roles': verifyResult.roles,
+          'isNewUser': verifyResult.isNewUser,
+          'profileCompleted': verifyResult.user.profileCompleted,
         };
       },
     );

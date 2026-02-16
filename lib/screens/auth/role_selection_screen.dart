@@ -7,8 +7,15 @@ import '../staff/staff_registration_page.dart';
 
 class RoleSelectionScreen extends StatefulWidget {
   final String userId;
+  final String phoneNumber;
+  final String otp;
 
-  const RoleSelectionScreen({super.key, required this.userId});
+  const RoleSelectionScreen({
+    super.key,
+    required this.userId,
+    required this.phoneNumber,
+    required this.otp,
+  });
 
   @override
   State<RoleSelectionScreen> createState() => _RoleSelectionScreenState();
@@ -173,11 +180,15 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
 
     return InkWell(
       onTap: () {
-        // Navigate to Admin registration
+        // Navigate to lounge owner registration with userId, phone, and otp
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => LoungeOwnerRegistrationScreen(userId: widget.userId),
+            builder: (context) => LoungeOwnerRegistrationScreen(
+              userId: widget.userId,
+              phoneNumber: widget.phoneNumber,
+              otp: widget.otp,
+            ),
           ),
         );
       },
@@ -509,8 +520,8 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                               _selectedDistrict == null
                                   ? 'Select district first'
                                   : availableLoungeOwners.isEmpty
-                                  ? 'No lounge owners in this district'
-                                  : 'Select lounge owner',
+                                      ? 'No lounge owners in this district'
+                                      : 'Select lounge owner',
                               style: theme.textTheme.bodyMedium?.copyWith(
                                 color: AppColors.textSecondary,
                               ),
@@ -532,8 +543,7 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                                 ),
                               );
                             }).toList(),
-                            onChanged:
-                                _selectedDistrict == null ||
+                            onChanged: _selectedDistrict == null ||
                                     availableLoungeOwners.isEmpty
                                 ? null
                                 : (String? newValue) {
@@ -557,8 +567,8 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
               Opacity(
                 opacity:
                     _selectedDistrict == null || _selectedLoungeOwner == null
-                    ? 0.5
-                    : 1.0,
+                        ? 0.5
+                        : 1.0,
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: AppSpacing.medium,
@@ -586,8 +596,8 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                                       _selectedLoungeOwner == null
                                   ? 'Select lounge owner first'
                                   : availableLounges.isEmpty
-                                  ? 'No lounges in this district'
-                                  : 'Select your lounge',
+                                      ? 'No lounges in this district'
+                                      : 'Select your lounge',
                               style: theme.textTheme.bodyMedium?.copyWith(
                                 color: AppColors.textSecondary,
                               ),
@@ -609,8 +619,7 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                                 ),
                               );
                             }).toList(),
-                            onChanged:
-                                _selectedDistrict == null ||
+                            onChanged: _selectedDistrict == null ||
                                     _selectedLoungeOwner == null ||
                                     availableLounges.isEmpty
                                 ? null
@@ -645,16 +654,22 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
 
               // Select Button
               InkWell(
-                onTap:
-                    _selectedDistrict != null &&
+                onTap: _selectedDistrict != null &&
                         _selectedLoungeOwner != null &&
                         _selectedLounge != null
                     ? () {
-                        // Navigate to staff registration
+                        // Navigate to staff registration with userData
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => const StaffRegistrationPage(),
+                            builder: (context) => StaffRegistrationPage(
+                              userId: widget.userId,
+                              phoneNumber: widget.phoneNumber,
+                              otp: widget.otp,
+                              selectedDistrict: _selectedDistrict,
+                              selectedLoungeOwner: _selectedLoungeOwner,
+                              selectedLounge: _selectedLounge,
+                            ),
                           ),
                         );
                       }
@@ -666,15 +681,13 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                     vertical: AppSpacing.small,
                   ),
                   decoration: BoxDecoration(
-                    color:
-                        _selectedDistrict != null &&
+                    color: _selectedDistrict != null &&
                             _selectedLoungeOwner != null &&
                             _selectedLounge != null
                         ? AppColors.secondary
                         : AppColors.secondary.withOpacity(0.5),
                     borderRadius: BorderRadius.circular(24),
-                    boxShadow:
-                        _selectedDistrict != null &&
+                    boxShadow: _selectedDistrict != null &&
                             _selectedLoungeOwner != null &&
                             _selectedLounge != null
                         ? [

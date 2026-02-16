@@ -9,6 +9,18 @@ import '../../core/error/exceptions.dart';
 abstract class AuthRemoteDataSource {
   Future<void> sendOtp(String phoneNumber);
   Future<AuthRemoteResult> verifyOtp(String phoneNumber, String otp);
+  Future<AuthRemoteResult> verifyOtpGeneric(String phoneNumber, String otp);
+  Future<AuthRemoteResult> verifyOtpLoungeOwner(String phoneNumber, String otp);
+  Future<AuthRemoteResult> verifyOtpLoungeStaff({
+    required String phoneNumber,
+    required String otp,
+    required String loungeId,
+    required String fullName,
+    required String nicNumber,
+    required String email,
+  });
+  Future<AuthRemoteResult> verifyOtpLoungeStaffRegistered(
+      String phoneNumber, String otp);
   Future<AuthTokensModel> refreshToken(String refreshToken);
   Future<void> logout({required String? refreshToken, required bool logoutAll});
   Future<UserModel> getUserProfile({String? accessToken});
@@ -73,20 +85,22 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
 
       // Extract user roles from response
       final roles = List<String>.from(data['roles'] ?? []);
-      
+
       // Extract is_new_user flag
       final isNewUser = data['is_new_user'] as bool? ?? false;
-      
+
       // Extract registration_step for lounge owners
       final registrationStep = data['registration_step'] as String?;
-      
+
       // Decode JWT to get user ID and phone
       final decodedToken = _decodeJWT(tokens.accessToken);
-      final userId = decodedToken['user_id'] as String? ?? 
-                     decodedToken['sub'] as String? ?? '';
+      final userId = decodedToken['user_id'] as String? ??
+          decodedToken['sub'] as String? ??
+          '';
       final phoneFromToken = decodedToken['phone'] as String? ?? phoneNumber;
-      final profileCompleted = decodedToken['profile_completed'] as bool? ?? false;
-      
+      final profileCompleted =
+          decodedToken['profile_completed'] as bool? ?? false;
+
       // Create user model from JWT data and API response
       final user = UserModel(
         id: userId,
@@ -112,6 +126,279 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
     }
   }
 
+  @override
+  Future<AuthRemoteResult> verifyOtpGeneric(
+      String phoneNumber, String otp) async {
+    try {
+      // Use generic endpoint that doesn't assign any role
+      final response = await dio.post(
+        '$baseUrl/api/v1/auth/verify-otp-generic',
+        data: {
+          'phone_number': phoneNumber,
+          'otp': otp,
+        },
+      );
+
+      if (response.statusCode != 200) {
+        throw ServerException(
+          'Failed to verify OTP',
+          'VERIFY_OTP_FAILED',
+          response.statusCode,
+        );
+      }
+
+      final data = response.data as Map<String, dynamic>;
+
+      // Extract tokens
+      final tokens = AuthTokensModel.fromJson(data);
+
+      // Extract user roles from response (will be empty for new users)
+      final roles = List<String>.from(data['roles'] ?? []);
+
+      // Extract is_new_user flag
+      final isNewUser = data['is_new_user'] as bool? ?? false;
+
+      // Extract registration_step (will be null for generic endpoint)
+      final registrationStep = data['registration_step'] as String?;
+
+      // Decode JWT to get user ID and phone
+      final decodedToken = _decodeJWT(tokens.accessToken);
+      final userId = decodedToken['user_id'] as String? ??
+          decodedToken['sub'] as String? ??
+          '';
+      final phoneFromToken = decodedToken['phone'] as String? ?? phoneNumber;
+      final profileCompleted =
+          decodedToken['profile_completed'] as bool? ?? false;
+
+      // Create user model from JWT data and API response
+      final user = UserModel(
+        id: userId,
+        phoneNumber: phoneFromToken,
+        email: null,
+        firstName: null,
+        lastName: null,
+        roles: roles,
+        profileCompleted: profileCompleted,
+        phoneVerified: true,
+        status: 'active',
+      );
+
+      return AuthRemoteResult(
+        user: user,
+        tokens: tokens,
+        roles: roles,
+        isNewUser: isNewUser,
+        registrationStep: registrationStep,
+      );
+    } on DioException catch (e) {
+      throw _handleDioError(e);
+    }
+  }
+
+  @override
+  Future<AuthRemoteResult> verifyOtpLoungeOwner(
+      String phoneNumber, String otp) async {
+    try {
+      // Use lounge-owner-specific endpoint
+      final response = await dio.post(
+        '$baseUrl/api/v1/auth/verify-otp-lounge-owner',
+        data: {
+          'phone_number': phoneNumber,
+          'otp': otp,
+        },
+      );
+
+      if (response.statusCode != 200) {
+        throw ServerException(
+          'Failed to verify OTP',
+          'VERIFY_OTP_FAILED',
+          response.statusCode,
+        );
+      }
+
+      final data = response.data as Map<String, dynamic>;
+
+      // Extract tokens
+      final tokens = AuthTokensModel.fromJson(data);
+
+      // Extract user roles from response
+      final roles = List<String>.from(data['roles'] ?? []);
+
+      // Extract is_new_user flag
+      final isNewUser = data['is_new_user'] as bool? ?? false;
+
+      // Extract registration_step for lounge owners
+      final registrationStep = data['registration_step'] as String?;
+
+      // Decode JWT to get user ID and phone
+      final decodedToken = _decodeJWT(tokens.accessToken);
+      final userId = decodedToken['user_id'] as String? ??
+          decodedToken['sub'] as String? ??
+          '';
+      final phoneFromToken = decodedToken['phone'] as String? ?? phoneNumber;
+      final profileCompleted =
+          decodedToken['profile_completed'] as bool? ?? false;
+
+      // Create user model from JWT data and API response
+      final user = UserModel(
+        id: userId,
+        phoneNumber: phoneFromToken,
+        email: null,
+        firstName: null,
+        lastName: null,
+        roles: roles,
+        profileCompleted: profileCompleted,
+        phoneVerified: true,
+        status: 'active',
+      );
+
+      return AuthRemoteResult(
+        user: user,
+        tokens: tokens,
+        roles: roles,
+        isNewUser: isNewUser,
+        registrationStep: registrationStep,
+      );
+    } on DioException catch (e) {
+      throw _handleDioError(e);
+    }
+  }
+
+  @override
+  Future<AuthRemoteResult> verifyOtpLoungeStaffRegistered(
+      String phoneNumber, String otp) async {
+    try {
+      final response = await dio.post(
+        '$baseUrl/api/v1/auth/verify-otp-lounge-staff-registered',
+        data: {
+          'phone_number': phoneNumber,
+          'otp': otp,
+        },
+      );
+
+      if (response.statusCode != 200) {
+        throw ServerException(
+          'Failed to verify OTP',
+          'VERIFY_OTP_FAILED',
+          response.statusCode,
+        );
+      }
+
+      final data = response.data as Map<String, dynamic>;
+
+      final tokens = AuthTokensModel.fromJson(data);
+      final roles = List<String>.from(data['roles'] ?? []);
+      final isNewUser = data['is_new_user'] as bool? ?? false;
+
+      final decodedToken = _decodeJWT(tokens.accessToken);
+      final userId = decodedToken['user_id'] as String? ??
+          decodedToken['sub'] as String? ??
+          '';
+      final phoneFromToken = decodedToken['phone'] as String? ?? phoneNumber;
+      final profileCompleted =
+          decodedToken['profile_completed'] as bool? ?? false;
+
+      final user = UserModel(
+        id: userId,
+        phoneNumber: phoneFromToken,
+        email: null,
+        firstName: null,
+        lastName: null,
+        roles: roles,
+        profileCompleted: profileCompleted,
+        phoneVerified: true,
+        status: 'active',
+      );
+
+      return AuthRemoteResult(
+        user: user,
+        tokens: tokens,
+        roles: roles,
+        isNewUser: isNewUser,
+        registrationStep: null,
+      );
+    } on DioException catch (e) {
+      throw _handleDioError(e);
+    }
+  }
+
+  @override
+  Future<AuthRemoteResult> verifyOtpLoungeStaff({
+    required String phoneNumber,
+    required String otp,
+    required String loungeId,
+    required String fullName,
+    required String nicNumber,
+    required String email,
+  }) async {
+    try {
+      // Use lounge-staff-specific endpoint
+      final response = await dio.post(
+        '$baseUrl/api/v1/auth/verify-otp-lounge-staff',
+        data: {
+          'phone_number': phoneNumber,
+          'otp': otp,
+          'lounge_id': loungeId,
+          'full_name': fullName,
+          'nic_number': nicNumber,
+          'email': email,
+        },
+      );
+
+      if (response.statusCode != 200) {
+        throw ServerException(
+          'Failed to verify OTP',
+          'VERIFY_OTP_FAILED',
+          response.statusCode,
+        );
+      }
+
+      final data = response.data as Map<String, dynamic>;
+
+      // Extract tokens
+      final tokens = AuthTokensModel.fromJson(data);
+
+      // Extract user roles from response
+      final roles = List<String>.from(data['roles'] ?? []);
+
+      // Extract is_new_user flag
+      final isNewUser = data['is_new_user'] as bool? ?? false;
+
+      // Staff profile is always complete after registration
+      final profileCompleted = data['profile_complete'] as bool? ?? true;
+
+      // Decode JWT to get user ID and phone
+      final decodedToken = _decodeJWT(tokens.accessToken);
+      final userId = decodedToken['user_id'] as String? ??
+          decodedToken['sub'] as String? ??
+          '';
+      final phoneFromToken = decodedToken['phone'] as String? ?? phoneNumber;
+
+      // Create user model from JWT data and API response
+      final user = UserModel(
+        id: userId,
+        phoneNumber: phoneFromToken,
+        email: email,
+        firstName: fullName,
+        lastName: null,
+        roles: roles,
+        profileCompleted: profileCompleted,
+        phoneVerified: true,
+        status: 'active',
+      );
+
+      return AuthRemoteResult(
+        user: user,
+        tokens: tokens,
+        roles: roles,
+        isNewUser: isNewUser,
+        registrationStep: null, // Staff don't have registration steps
+      );
+    } on DioException catch (e) {
+      throw _handleDioError(e);
+    }
+  }
+
   /// Decode JWT token to extract payload
   /// JWT format: header.payload.signature
   Map<String, dynamic> _decodeJWT(String token) {
@@ -123,13 +410,13 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
 
       // Decode the payload (second part)
       final payload = parts[1];
-      
+
       // Add padding if needed (JWT base64 doesn't use padding)
       var normalized = base64Url.normalize(payload);
-      
+
       // Decode base64
       final decoded = utf8.decode(base64Url.decode(normalized));
-      
+
       // Parse JSON
       return json.decode(decoded) as Map<String, dynamic>;
     } catch (e) {
@@ -181,7 +468,8 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
     } on DioException catch (e) {
       // Don't throw error on logout - clear local state anyway
       // Handle common cases: token already revoked (500), network errors, etc.
-      print('⚠️ Logout API error (ignoring): ${e.response?.statusCode} - ${e.message}');
+      print(
+          '⚠️ Logout API error (ignoring): ${e.response?.statusCode} - ${e.message}');
     } catch (e) {
       print('⚠️ Logout unexpected error (ignoring): $e');
     }
@@ -260,7 +548,8 @@ class AuthRemoteResult {
   final AuthTokensModel tokens;
   final List<String> roles;
   final bool isNewUser;
-  final String? registrationStep; // For lounge owners: phone_verified, personal_info, nic_uploaded, lounge_added, completed
+  final String?
+      registrationStep; // For lounge owners: phone_verified, personal_info, nic_uploaded, lounge_added, completed
 
   AuthRemoteResult({
     required this.user,

@@ -17,6 +17,39 @@ abstract class AuthRepository {
     required String otp,
   });
 
+  /// Verify OTP - Generic endpoint (no role assignment)
+  /// For multi-role flows (lounge owner + staff selection)
+  /// Returns Right(AuthResult) on success or Left(Failure) on error
+  Future<Either<Failure, AuthResult>> verifyOtpGeneric({
+    required String phoneNumber,
+    required String otp,
+  });
+
+  /// Verify OTP for Lounge Owner
+  /// Returns Right(AuthResult) on success or Left(Failure) on error
+  Future<Either<Failure, AuthResult>> verifyOtpLoungeOwner({
+    required String phoneNumber,
+    required String otp,
+  });
+
+  /// Verify OTP for Lounge Staff
+  /// Returns Right(AuthResult) on success or Left(Failure) on error
+  Future<Either<Failure, AuthResult>> verifyOtpLoungeStaff({
+    required String phoneNumber,
+    required String otp,
+    required String loungeId,
+    required String fullName,
+    required String nicNumber,
+    required String email,
+  });
+
+  /// Verify OTP for Registered Lounge Staff
+  /// Returns Right(AuthResult) on success or Left(Failure) on error
+  Future<Either<Failure, AuthResult>> verifyOtpLoungeStaffRegistered({
+    required String phoneNumber,
+    required String otp,
+  });
+
   /// Refresh access token
   /// Returns Right(AuthTokens) on success or Left(Failure) on error
   Future<Either<Failure, AuthTokens>> refreshToken();
@@ -43,7 +76,7 @@ class AuthResult {
   final List<String> roles;
   final bool isNewUser;
   final String?
-  registrationStep; // For lounge owners: phone_verified, personal_info, nic_uploaded, lounge_added, completed
+      registrationStep; // For lounge owners: phone_verified, personal_info, nic_uploaded, lounge_added, completed
 
   AuthResult({
     required this.user,
@@ -60,9 +93,13 @@ class Either<L, R> {
   final L? _left;
   final R? _right;
 
-  Either.left(L left) : _left = left, _right = null;
+  Either.left(L left)
+      : _left = left,
+        _right = null;
 
-  Either.right(R right) : _left = null, _right = right;
+  Either.right(R right)
+      : _left = null,
+        _right = right;
 
   bool get isLeft => _left != null;
   bool get isRight => _right != null;

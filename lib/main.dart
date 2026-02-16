@@ -16,8 +16,12 @@ import 'presentation/providers/driver_provider.dart';
 
 // Screens
 import 'screens/splash_screen.dart';
+import 'screens/auth/initial_role_selection_screen.dart';
 import 'screens/auth/phone_input_screen.dart';
 import 'screens/auth/otp_verification_screen.dart';
+import 'screens/auth/staff_otp_registration_screen.dart';
+import 'screens/auth/staff_pending_approval_screen.dart';
+import 'screens/auth/staff_registered_login_screen.dart';
 import 'screens/lounge_owner/lounge_owner_registration_screen.dart';
 import 'screens/dashboard/lounge_owner_home_screen.dart';
 import 'screens/lounge/lounges_list_screen.dart';
@@ -95,6 +99,10 @@ class MyApp extends StatelessWidget {
                   return MaterialPageRoute(
                     builder: (_) => const SplashScreen(),
                   );
+                case '/role-selection':
+                  return MaterialPageRoute(
+                    builder: (_) => const InitialRoleSelectionScreen(),
+                  );
                 case '/phone-input':
                   return MaterialPageRoute(
                     builder: (_) => const PhoneInputScreen(),
@@ -105,6 +113,18 @@ class MyApp extends StatelessWidget {
                     builder: (_) => OtpVerificationScreen(
                       phoneNumber: args?['phoneNumber'] as String? ?? '',
                     ),
+                  );
+                case '/staff-otp-registration':
+                  return MaterialPageRoute(
+                    builder: (_) => const StaffOtpRegistrationScreen(),
+                  );
+                case '/staff-pending-approval':
+                  return MaterialPageRoute(
+                    builder: (_) => const StaffPendingApprovalScreen(),
+                  );
+                case '/staff-registered-login':
+                  return MaterialPageRoute(
+                    builder: (_) => const StaffRegisteredLoginScreen(),
                   );
                 case '/lounge-owner-registration':
                   final args = settings.arguments as Map<String, dynamic>?;

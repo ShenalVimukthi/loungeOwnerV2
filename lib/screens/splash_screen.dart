@@ -58,12 +58,12 @@ class _SplashScreenState extends State<SplashScreen> {
       final hasLoungeOwnerRole = user?.roles.contains('lounge_owner') ?? false;
 
       if (!hasLoungeOwnerRole) {
-        // No lounge_owner role - shouldn't happen, go to phone input
-        _logger.w('SPLASH:  No lounge_owner role - going to phone input');
+        // No lounge_owner role - go to ROLE SELECTION SCREEN first
+        _logger.w('SPLASH: No lounge_owner role - going to role selection');
         _hasNavigated = true;
         Navigator.of(
           context,
-        ).pushReplacementNamed(AppConstants.phoneInputRoute);
+        ).pushReplacementNamed(AppConstants.roleSelectionRoute);
         return;
       }
 
@@ -102,7 +102,7 @@ class _SplashScreenState extends State<SplashScreen> {
         _hasNavigated = true;
         Navigator.of(
           context,
-        ).pushReplacementNamed(AppConstants.phoneInputRoute);
+        ).pushReplacementNamed(AppConstants.roleSelectionRoute);
         return;
       }
 
@@ -139,14 +139,15 @@ class _SplashScreenState extends State<SplashScreen> {
           _hasNavigated = true;
           Navigator.of(
             context,
-          ).pushReplacementNamed(AppConstants.phoneInputRoute);
+          ).pushReplacementNamed(AppConstants.roleSelectionRoute);
         }
       }
     } else {
-      //  Not authenticated (no tokens) - go to phone input
-      _logger.i('SPLASH:  Not authenticated - going to phone input');
+      //  Not authenticated (no tokens) - go to role selection
+      _logger.i('SPLASH:  Not authenticated - going to role selection');
       _hasNavigated = true;
-      Navigator.of(context).pushReplacementNamed(AppConstants.phoneInputRoute);
+      Navigator.of(context)
+          .pushReplacementNamed(AppConstants.roleSelectionRoute);
     }
   }
 

@@ -7,10 +7,13 @@ import 'role_selection_screen.dart';
 /// Use this after successful OTP verification
 class AuthNavigationHelper {
   /// Navigate to role selection screen after OTP verification success
-  static void navigateToRoleSelection(BuildContext context, String userId) {
+  static void navigateToRoleSelection(BuildContext context, String userId,
+      {required String phoneNumber, required String otp}) {
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(builder: (context) => RoleSelectionScreen(userId: userId)),
+      MaterialPageRoute(
+          builder: (context) => RoleSelectionScreen(
+              userId: userId, phoneNumber: phoneNumber, otp: otp)),
     );
   }
 

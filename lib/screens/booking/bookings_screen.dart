@@ -79,7 +79,8 @@ class _BookingsScreenState extends State<BookingsScreen> {
                 DropdownMenuItem(value: 'all', child: Text('All')),
                 DropdownMenuItem(value: 'pending', child: Text('Pending')),
                 DropdownMenuItem(value: 'confirmed', child: Text('Confirmed')),
-                DropdownMenuItem(value: 'checked_in', child: Text('Checked In')),
+                DropdownMenuItem(
+                    value: 'checked_in', child: Text('Checked In')),
                 DropdownMenuItem(value: 'completed', child: Text('Completed')),
                 DropdownMenuItem(value: 'cancelled', child: Text('Cancelled')),
                 DropdownMenuItem(value: 'no_show', child: Text('No Show')),

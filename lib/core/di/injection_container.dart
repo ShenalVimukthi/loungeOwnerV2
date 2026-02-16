@@ -395,4 +395,6 @@ class InjectionContainer {
 
   ApiClient get apiClient => _apiClient;
   SupabaseStorageService get supabaseStorageService => _supabaseStorageService;
+  LoungeOwnerRemoteDataSource get loungeOwnerRemoteDataSource =>
+      _loungeOwnerRemoteDataSource;
 }

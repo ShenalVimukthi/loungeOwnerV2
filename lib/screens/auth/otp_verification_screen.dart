@@ -17,7 +17,10 @@ import 'role_selection_screen.dart';
 class OtpVerificationScreen extends StatefulWidget {
   final String phoneNumber;
 
-  const OtpVerificationScreen({super.key, required this.phoneNumber});
+  const OtpVerificationScreen({
+    super.key,
+    required this.phoneNumber,
+  });
 
   @override
   State<OtpVerificationScreen> createState() => _OtpVerificationScreenState();
@@ -38,8 +41,19 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen>
   @override
   void initState() {
     super.initState();
+
+    // Owner flow only
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    authProvider.setSelectedRole('lounge_owner');
+    _logger.i('🔧 OTP Screen: Selected role set to lounge_owner');
+
     _startCountdown();
     _listenForSmsCode();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
   }
 
   @override
@@ -131,6 +145,9 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen>
     if (!mounted) return;
 
     if (result['success'] == true) {
+      final nextRoute = result['nextRoute'] as String?;
+
+      // Otherwise handle regular lounge owner flow
       final userId = result['userId'] as String?;
       final roles = result['roles'] as List<String>? ?? [];
       final registrationStep = result['registrationStep'] as String?;
@@ -213,7 +230,11 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen>
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (context) => RoleSelectionScreen(userId: userId),
+            builder: (context) => RoleSelectionScreen(
+              userId: userId,
+              phoneNumber: widget.phoneNumber,
+              otp: _otpController.text,
+            ),
           ),
         );
       }
@@ -226,7 +247,11 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen>
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (context) => RoleSelectionScreen(userId: userId),
+            builder: (context) => RoleSelectionScreen(
+              userId: userId,
+              phoneNumber: widget.phoneNumber,
+              otp: _otpController.text,
+            ),
           ),
         );
       }

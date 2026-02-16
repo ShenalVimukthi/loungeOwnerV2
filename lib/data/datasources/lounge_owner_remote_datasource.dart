@@ -27,7 +27,7 @@ class LoungeOwnerRemoteDataSource {
       print('   Manager NIC: $managerNicNumber');
       print('   Manager Email: $managerEmail');
       print('   District: $district');
-      
+
       final response = await apiClient.post(
         '/api/v1/lounge-owner/register/business-info',
         data: {
@@ -49,7 +49,7 @@ class LoungeOwnerRemoteDataSource {
       print('   Status Code: ${e.response?.statusCode}');
       print('   Response Data: ${e.response?.data}');
       print('   Error Message: ${e.message}');
-      
+
       // Extract meaningful error from backend response
       String errorMessage = 'Failed to save business info';
       if (e.response?.data != null) {
@@ -163,6 +163,110 @@ class LoungeOwnerRemoteDataSource {
       final progress = await getRegistrationProgress();
       return progress['ocr_blocked_until'] as String?;
     } catch (e) {
+      throw ServerException(e.toString());
+    }
+  }
+
+  /// Get approved lounge owners grouped by district
+  /// GET /api/v1/lounge-owner/approved/grouped-by-district
+  /// Response: {"district_name": [{"id": "...", "owner_name": "...", ...}]}
+  Future<Map<String, List<Map<String, dynamic>>>>
+      getApprovedLoungeOwnersGroupedByDistrict() async {
+    try {
+      print('📍 Fetching approved lounge owners grouped by district...');
+      final response = await apiClient.get(
+        '/api/v1/lounge-owner/approved/grouped-by-district',
+      );
+
+      print('📍 Response Status: ${response.statusCode}');
+      print('📍 Response Data Type: ${response.data.runtimeType}');
+      print('📍 Response Data: ${response.data}');
+
+      if (response.statusCode != 200) {
+        throw ServerException(
+          'Failed to get lounge owners - Status: ${response.statusCode}',
+        );
+      }
+
+      var responseData = response.data;
+      if (responseData is Map<String, dynamic>) {
+        if (responseData.containsKey('lounge_owners_by_district')) {
+          responseData = responseData['lounge_owners_by_district'];
+        } else if (responseData.containsKey('data')) {
+          responseData = responseData['data'];
+        } else if (responseData.containsKey('districts')) {
+          responseData = responseData['districts'];
+        }
+      }
+      final result = <String, List<Map<String, dynamic>>>{};
+
+      if (responseData is Map<String, dynamic>) {
+        responseData.forEach((district, owners) {
+          if (owners is List) {
+            result[district] =
+                owners.map((e) => e as Map<String, dynamic>).toList();
+          }
+        });
+      }
+
+      print('📍 Parsed ${result.length} districts');
+      return result;
+    } on DioException catch (e) {
+      print('❌ DioException: ${e.type}');
+      print('❌ Response Status: ${e.response?.statusCode}');
+      print('❌ Response Data: ${e.response?.data}');
+      final errorMessage =
+          e.response?.data?['message'] ?? e.message ?? 'Unknown error';
+      throw ServerException('Get lounge owners failed: $errorMessage');
+    } catch (e) {
+      print('❌ Error: $e');
+      throw ServerException(e.toString());
+    }
+  }
+
+  /// Get lounges owned by a specific lounge owner
+  /// GET /api/v1/lounge-owner/:owner_id/lounges
+  Future<List<Map<String, dynamic>>> getLoungesByOwnerId(String ownerId) async {
+    try {
+      print('📍 Fetching lounges for owner: $ownerId');
+      final response = await apiClient.get(
+        '/api/v1/lounge-owner/$ownerId/lounges',
+      );
+
+      print('📍 Response Status: ${response.statusCode}');
+      print('📍 Response Data: ${response.data}');
+
+      if (response.statusCode != 200) {
+        throw ServerException(
+          'Failed to get lounges - Status: ${response.statusCode}',
+        );
+      }
+
+      final responseData = response.data;
+      List<dynamic> loungesList;
+
+      if (responseData is List) {
+        loungesList = responseData;
+      } else if (responseData is Map && responseData.containsKey('lounges')) {
+        loungesList = responseData['lounges'] as List? ?? [];
+      } else if (responseData is Map && responseData.containsKey('data')) {
+        loungesList = responseData['data'] as List? ?? [];
+      } else {
+        print('⚠️ Unexpected response format: ${responseData.runtimeType}');
+        loungesList = [];
+      }
+
+      print('📍 Parsed ${loungesList.length} lounges');
+      return loungesList.map((e) => e as Map<String, dynamic>).toList();
+    } on DioException catch (e) {
+      print('❌ DioException: ${e.type}');
+      print('❌ Response Status: ${e.response?.statusCode}');
+      print('❌ Response Data: ${e.response?.data}');
+      final errorMessage =
+          e.response?.data?['message'] ?? e.message ?? 'Unknown error';
+      throw ServerException('Get lounges failed: $errorMessage');
+    } catch (e) {
+      print('❌ Error: $e');
       throw ServerException(e.toString());
     }
   }

@@ -78,6 +78,178 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
+  Future<Either<Failure, AuthResult>> verifyOtpGeneric({
+    required String phoneNumber,
+    required String otp,
+  }) async {
+    try {
+      // Call remote API - generic endpoint (no role assignment)
+      final remoteResult =
+          await remoteDataSource.verifyOtpGeneric(phoneNumber, otp);
+
+      // Save tokens to local storage
+      await localDataSource.saveTokens(remoteResult.tokens);
+
+      // Save user to local storage
+      await localDataSource.saveUser(remoteResult.user);
+
+      // Convert to domain entities
+      return Either.right(
+        AuthResult(
+          user: remoteResult.user.toEntity(),
+          tokens: remoteResult.tokens.toEntity(),
+          roles: remoteResult.roles,
+          isNewUser: remoteResult.isNewUser,
+          registrationStep: remoteResult.registrationStep,
+        ),
+      );
+    } on AuthException catch (e) {
+      return Either.left(AuthFailure(e.message, e.code));
+    } on ServerException catch (e) {
+      return Either.left(ServerFailure(e.message, e.code));
+    } on NetworkException catch (e) {
+      return Either.left(NetworkFailure(e.message, e.code));
+    } on CacheException catch (e) {
+      return Either.left(CacheFailure(e.message, e.code));
+    } on AppException catch (e) {
+      return Either.left(UnknownFailure(e.message, e.code));
+    } catch (e) {
+      return Either.left(UnknownFailure(e.toString()));
+    }
+  }
+
+  @override
+  Future<Either<Failure, AuthResult>> verifyOtpLoungeOwner({
+    required String phoneNumber,
+    required String otp,
+  }) async {
+    try {
+      // Call remote API with lounge owner specific endpoint
+      final remoteResult =
+          await remoteDataSource.verifyOtpLoungeOwner(phoneNumber, otp);
+
+      // Save tokens to local storage
+      await localDataSource.saveTokens(remoteResult.tokens);
+
+      // Save user to local storage
+      await localDataSource.saveUser(remoteResult.user);
+
+      // Convert to domain entities
+      return Either.right(
+        AuthResult(
+          user: remoteResult.user.toEntity(),
+          tokens: remoteResult.tokens.toEntity(),
+          roles: remoteResult.roles,
+          isNewUser: remoteResult.isNewUser,
+          registrationStep: remoteResult.registrationStep,
+        ),
+      );
+    } on AuthException catch (e) {
+      return Either.left(AuthFailure(e.message, e.code));
+    } on ServerException catch (e) {
+      return Either.left(ServerFailure(e.message, e.code));
+    } on NetworkException catch (e) {
+      return Either.left(NetworkFailure(e.message, e.code));
+    } on CacheException catch (e) {
+      return Either.left(CacheFailure(e.message, e.code));
+    } on AppException catch (e) {
+      return Either.left(UnknownFailure(e.message, e.code));
+    } catch (e) {
+      return Either.left(UnknownFailure(e.toString()));
+    }
+  }
+
+  @override
+  Future<Either<Failure, AuthResult>> verifyOtpLoungeStaff({
+    required String phoneNumber,
+    required String otp,
+    required String loungeId,
+    required String fullName,
+    required String nicNumber,
+    required String email,
+  }) async {
+    try {
+      // Call remote API with lounge staff specific endpoint
+      final remoteResult = await remoteDataSource.verifyOtpLoungeStaff(
+        phoneNumber: phoneNumber,
+        otp: otp,
+        loungeId: loungeId,
+        fullName: fullName,
+        nicNumber: nicNumber,
+        email: email,
+      );
+
+      // Save tokens to local storage
+      await localDataSource.saveTokens(remoteResult.tokens);
+
+      // Save user to local storage
+      await localDataSource.saveUser(remoteResult.user);
+
+      // Convert to domain entities
+      return Either.right(
+        AuthResult(
+          user: remoteResult.user.toEntity(),
+          tokens: remoteResult.tokens.toEntity(),
+          roles: remoteResult.roles,
+          isNewUser: remoteResult.isNewUser,
+          registrationStep: remoteResult.registrationStep,
+        ),
+      );
+    } on AuthException catch (e) {
+      return Either.left(AuthFailure(e.message, e.code));
+    } on ServerException catch (e) {
+      return Either.left(ServerFailure(e.message, e.code));
+    } on NetworkException catch (e) {
+      return Either.left(NetworkFailure(e.message, e.code));
+    } on CacheException catch (e) {
+      return Either.left(CacheFailure(e.message, e.code));
+    } on AppException catch (e) {
+      return Either.left(UnknownFailure(e.message, e.code));
+    } catch (e) {
+      return Either.left(UnknownFailure(e.toString()));
+    }
+  }
+
+  @override
+  Future<Either<Failure, AuthResult>> verifyOtpLoungeStaffRegistered({
+    required String phoneNumber,
+    required String otp,
+  }) async {
+    try {
+      final remoteResult =
+          await remoteDataSource.verifyOtpLoungeStaffRegistered(
+        phoneNumber,
+        otp,
+      );
+
+      await localDataSource.saveTokens(remoteResult.tokens);
+      await localDataSource.saveUser(remoteResult.user);
+
+      return Either.right(
+        AuthResult(
+          user: remoteResult.user.toEntity(),
+          tokens: remoteResult.tokens.toEntity(),
+          roles: remoteResult.roles,
+          isNewUser: remoteResult.isNewUser,
+          registrationStep: remoteResult.registrationStep,
+        ),
+      );
+    } on AuthException catch (e) {
+      return Either.left(AuthFailure(e.message, e.code));
+    } on ServerException catch (e) {
+      return Either.left(ServerFailure(e.message, e.code));
+    } on NetworkException catch (e) {
+      return Either.left(NetworkFailure(e.message, e.code));
+    } on CacheException catch (e) {
+      return Either.left(CacheFailure(e.message, e.code));
+    } on AppException catch (e) {
+      return Either.left(UnknownFailure(e.message, e.code));
+    } catch (e) {
+      return Either.left(UnknownFailure(e.toString()));
+    }
+  }
+
+  @override
   Future<Either<Failure, AuthTokens>> refreshToken() async {
     try {
       // Get current tokens from local storage
