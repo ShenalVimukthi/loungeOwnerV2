@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import '../../domain/entities/driver.dart';
 import '../../data/datasources/driver_remote_datasource.dart';
+import '../../data/models/lounge_booking_driver_assignment_model.dart';
 import '../../core/error/exceptions.dart';
 
 /// Provider: Driver Management
@@ -15,12 +16,14 @@ class DriverProvider extends ChangeNotifier {
   String? _error;
   List<Driver> _driverList = [];
   Driver? _selectedDriver;
+  LoungeBookingDriverAssignmentModel? _lastAssignment;
 
   // Getters
   bool get isLoading => _isLoading;
   String? get error => _error;
   List<Driver> get driverList => _driverList;
   Driver? get selectedDriver => _selectedDriver;
+  LoungeBookingDriverAssignmentModel? get lastAssignment => _lastAssignment;
 
   /// Add driver to lounge
   Future<bool> addDriver({
@@ -78,6 +81,46 @@ class DriverProvider extends ChangeNotifier {
       );
 
       _driverList = drivers;
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } on AppException catch (e) {
+      _error = e.message;
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _error = 'An unexpected error occurred';
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Assign driver to booking
+  Future<bool> assignDriverToBooking({
+    required String bookingId,
+    required String driverId,
+    required String loungeId,
+    required String guestName,
+    required String guestContact,
+    required String driverContact,
+  }) async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      final assignment = await remoteDataSource.assignDriverToBooking(
+        bookingId: bookingId,
+        driverId: driverId,
+        loungeId: loungeId,
+        guestName: guestName,
+        guestContact: guestContact,
+        driverContact: driverContact,
+      );
+
+      _lastAssignment = assignment;
       _isLoading = false;
       notifyListeners();
       return true;

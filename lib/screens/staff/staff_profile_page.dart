@@ -3,10 +3,33 @@ import 'package:provider/provider.dart';
 import '../../widgets/staff_bottom_nav_bar.dart';
 import '../../screens/splash_screen.dart';
 import '../../presentation/providers/auth_provider.dart';
+import '../../presentation/providers/lounge_staff_provider.dart';
 import 'staff_edit_profile_page.dart';
 
-class StaffProfilePage extends StatelessWidget {
+class StaffProfilePage extends StatefulWidget {
   const StaffProfilePage({super.key});
+
+  @override
+  State<StaffProfilePage> createState() => _StaffProfilePageState();
+}
+
+class _StaffProfilePageState extends State<StaffProfilePage> {
+  @override
+  void initState() {
+    super.initState();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final loungeStaffProvider = Provider.of<LoungeStaffProvider>(
+        context,
+        listen: false,
+      );
+
+      if (loungeStaffProvider.selectedStaff == null &&
+          !loungeStaffProvider.isLoading) {
+        loungeStaffProvider.getMyStaffProfile();
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -55,11 +78,12 @@ class StaffProfilePage extends StatelessWidget {
                   const SizedBox(height: 12),
 
                   /// NAME
-                  Consumer<AuthProvider>(
-                    builder: (context, authProvider, _) {
+                  Consumer2<AuthProvider, LoungeStaffProvider>(
+                    builder: (context, authProvider, staffProvider, _) {
                       final user = authProvider.user;
+                      final staff = staffProvider.selectedStaff;
                       return Text(
-                        user?.firstName ?? 'Guest',
+                        staff?.fullName ?? user?.firstName ?? 'Guest',
                         style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w600,
@@ -107,27 +131,38 @@ class StaffProfilePage extends StatelessWidget {
             const SizedBox(height: 20),
 
             /// CONTACT INFORMATION
-            Consumer<AuthProvider>(
-              builder: (context, authProvider, _) {
+            Consumer2<AuthProvider, LoungeStaffProvider>(
+              builder: (context, authProvider, staffProvider, _) {
                 final user = authProvider.user;
+                final staff = staffProvider.selectedStaff;
+                final staffName = staff?.fullName ?? user?.firstName;
+                final staffPhone = staff?.phone ?? user?.phoneNumber;
+                final staffNic = staff?.nicNumber ?? user?.nic;
+
                 return _SectionCard(
                   title: 'Contact Information',
                   children: [
                     _InfoTile(
                       icon: Icons.phone,
                       title: 'Phone Number',
-                      value: user?.phoneNumber ?? 'Not available',
+                      value: staffPhone ?? 'Not available',
                     ),
                     _InfoTile(
                       icon: Icons.person,
                       title: 'Full Name',
-                      value: user?.firstName ?? 'Not available',
+                      value: staffName ?? 'Not available',
                     ),
-                    if (user?.nic != null)
+                    if (staffNic != null && staffNic.isNotEmpty)
                       _InfoTile(
                         icon: Icons.badge,
                         title: 'NIC Number',
-                        value: user!.nic!,
+                        value: staffNic,
+                      ),
+                    if (staff?.email != null && staff!.email!.isNotEmpty)
+                      _InfoTile(
+                        icon: Icons.email,
+                        title: 'Email',
+                        value: staff.email!,
                       ),
                   ],
                 );

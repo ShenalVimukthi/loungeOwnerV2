@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../models/driver_model.dart';
+import '../models/lounge_booking_driver_assignment_model.dart';
 import '../../core/error/exceptions.dart';
 import '../../config/api_config.dart';
 
@@ -22,6 +23,17 @@ abstract class DriverRemoteDataSource {
   /// GET /api/v1/lounges/:lounge_id/drivers
   Future<List<DriverModel>> getDriversByLounge({
     required String loungeId,
+  });
+
+  /// Assign driver to booking
+  /// POST /api/v1/lounge-booking-driver-assignments
+  Future<LoungeBookingDriverAssignmentModel> assignDriverToBooking({
+    required String bookingId,
+    required String driverId,
+    required String loungeId,
+    required String guestName,
+    required String guestContact,
+    required String driverContact,
   });
 }
 
@@ -194,6 +206,69 @@ class DriverRemoteDataSourceImpl implements DriverRemoteDataSource {
       'Failed to parse driver data from response',
       'PARSE_ERROR',
     );
+  }
+
+  @override
+  Future<LoungeBookingDriverAssignmentModel> assignDriverToBooking({
+    required String bookingId,
+    required String driverId,
+    required String loungeId,
+    required String guestName,
+    required String guestContact,
+    required String driverContact,
+  }) async {
+    try {
+      print('📤 [ASSIGNMENT API] Assigning driver to booking');
+      print('📤 [ASSIGNMENT API] Lounge ID: $loungeId');
+      print('📤 [ASSIGNMENT API] Booking ID: $bookingId');
+      print('📤 [ASSIGNMENT API] Driver ID: $driverId');
+      print('📤 [ASSIGNMENT API] Guest: $guestName ($guestContact)');
+      print('📤 [ASSIGNMENT API] Driver Contact: $driverContact');
+
+      final response = await _dio.post(
+        '/api/v1/lounge-booking-driver-assignments',
+        data: {
+          'lounge_id': loungeId,
+          'lounge_booking_id': bookingId,
+          'driver_id': driverId,
+          'guest_name': guestName,
+          'guest_contact': guestContact,
+          'driver_contact': driverContact,
+        },
+      );
+
+      print('📥 [ASSIGNMENT API] Response status: ${response.statusCode}');
+      print('📥 [ASSIGNMENT API] Response data: ${response.data}');
+
+      if (response.data == null) {
+        throw const ServerException(
+          'Empty response from server',
+          'EMPTY_RESPONSE',
+          null,
+        );
+      }
+
+      // Handle different response formats
+      final responseData = response.data;
+      if (responseData is Map<String, dynamic>) {
+        final assignmentData =
+            responseData['assignment'] ?? responseData['data'] ?? responseData;
+        return LoungeBookingDriverAssignmentModel.fromJson(
+          assignmentData as Map<String, dynamic>,
+        );
+      }
+
+      return LoungeBookingDriverAssignmentModel.fromJson(
+        responseData as Map<String, dynamic>,
+      );
+    } on DioException catch (e) {
+      print('❌ [ASSIGNMENT API] DioException: ${e.message}');
+      print('❌ [ASSIGNMENT API] Response: ${e.response?.data}');
+      throw _handleDioError(e);
+    } catch (e) {
+      print('❌ [ASSIGNMENT API] Unexpected error: $e');
+      rethrow;
+    }
   }
 
   AppException _handleDioError(DioException error) {

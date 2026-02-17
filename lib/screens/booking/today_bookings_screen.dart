@@ -43,13 +43,22 @@ class _TodayBookingsScreenState extends State<TodayBookingsScreen>
 
   Future<void> _loadBookings() async {
     final bookingProvider = context.read<LoungeBookingProvider>();
-    final registrationProvider = context.read<RegistrationProvider>();
 
     if (widget.isStaffMode) {
-      // Staff mode - load today's bookings
-      await bookingProvider.getTodayBookings();
+      // Staff mode - use staff-specific endpoint
+      // No need to fetch staff profile or lounge ID - endpoint handles it automatically
+      final selectedDate = _selectedDay ?? DateTime.now();
+      final dateFilter = '${selectedDate.year.toString().padLeft(4, '0')}-'
+          '${selectedDate.month.toString().padLeft(2, '0')}-'
+          '${selectedDate.day.toString().padLeft(2, '0')}';
+
+      await bookingProvider.getStaffBookings(
+        date: dateFilter,
+        limit: 100,
+      );
     } else {
       // Owner mode - load all owner bookings
+      final registrationProvider = context.read<RegistrationProvider>();
       // Get lounge ID
       final lounges = registrationProvider.verifiedLounges;
       if (lounges.isEmpty) {
@@ -61,8 +70,7 @@ class _TodayBookingsScreenState extends State<TodayBookingsScreen>
         _selectedLoungeId = verifiedLounges.first.id;
       }
       final selectedDate = _selectedDay ?? DateTime.now();
-      final dateFilter =
-          '${selectedDate.year.toString().padLeft(4, '0')}-'
+      final dateFilter = '${selectedDate.year.toString().padLeft(4, '0')}-'
           '${selectedDate.month.toString().padLeft(2, '0')}-'
           '${selectedDate.day.toString().padLeft(2, '0')}';
 
@@ -126,7 +134,8 @@ class _TodayBookingsScreenState extends State<TodayBookingsScreen>
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Consumer<RegistrationProvider>(
                   builder: (context, registrationProvider, child) {
-                    final verifiedLounges = registrationProvider.verifiedLounges;
+                    final verifiedLounges =
+                        registrationProvider.verifiedLounges;
                     if (verifiedLounges.isEmpty) {
                       return const SizedBox.shrink();
                     }
@@ -146,8 +155,8 @@ class _TodayBookingsScreenState extends State<TodayBookingsScreen>
                           'Select Lounge',
                           style: TextStyle(color: AppColors.textSecondary),
                         ),
-                        value: verifiedLounges.any(
-                                (lounge) => lounge.id == _selectedLoungeId)
+                        value: verifiedLounges
+                                .any((lounge) => lounge.id == _selectedLoungeId)
                             ? _selectedLoungeId
                             : null,
                         items: verifiedLounges.map((lounge) {
@@ -288,9 +297,8 @@ class _TodayBookingsScreenState extends State<TodayBookingsScreen>
                       _selectedDay = selectedDay;
                       _focusedDay = focusedDay;
                     });
-                    if (!widget.isStaffMode) {
-                      _loadBookings();
-                    }
+                    // Reload bookings for the selected date (both staff and owner)
+                    _loadBookings();
                   },
                   onPageChanged: (focusedDay) {
                     _focusedDay = focusedDay;
@@ -357,9 +365,8 @@ class _TodayBookingsScreenState extends State<TodayBookingsScreen>
                     );
                   }
 
-                  final bookings = widget.isStaffMode
-                      ? bookingProvider.todayBookings
-                      : bookingProvider.bookings;
+                  // Both staff and owner use bookingProvider.bookings now
+                  final bookings = bookingProvider.bookings;
 
                   if (bookings.isEmpty) {
                     return Center(
@@ -393,13 +400,16 @@ class _TodayBookingsScreenState extends State<TodayBookingsScreen>
                       itemBuilder: (context, index) {
                         final booking = bookings[index];
                         return BookingCard(
+                          bookingId: booking.id,
                           name: booking.passengerName ?? 'Guest',
                           place: booking.loungeName ?? 'Lounge',
                           time: _formatTime(booking.checkInTime),
                           status: booking.status,
                           bookingReference: booking.bookingReference,
                           guestCount: booking.guestCount,
+                          phone: booking.passengerPhone,
                           blinkAnimation: _blinkController,
+                          loungeId: _selectedLoungeId,
                         );
                       },
                     ),
@@ -459,23 +469,29 @@ class _TodayBookingsScreenState extends State<TodayBookingsScreen>
 
 // ---------------- Booking Card Widget ----------------
 class BookingCard extends StatelessWidget {
+  final String bookingId;
   final String name;
   final String place;
   final String time;
   final String status;
   final String bookingReference;
   final int guestCount;
+  final String? phone;
   final AnimationController blinkAnimation;
+  final String? loungeId;
 
   const BookingCard({
     super.key,
+    required this.bookingId,
     required this.name,
     required this.place,
     required this.time,
     required this.status,
     required this.bookingReference,
     required this.guestCount,
+    this.phone,
     required this.blinkAnimation,
+    required this.loungeId,
   });
 
   @override
@@ -539,6 +555,14 @@ class BookingCard extends StatelessWidget {
                         color: AppColors.textSecondary,
                       ),
                     ),
+                    if (phone != null && phone!.isNotEmpty)
+                      Text(
+                        'Phone: $phone',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -570,7 +594,14 @@ class BookingCard extends StatelessWidget {
               onTap: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => TukTukListPage()),
+                  MaterialPageRoute(
+                    builder: (context) => TukTukListPage(
+                      loungeId: loungeId,
+                      bookingId: bookingId,
+                      guestName: name,
+                      guestContact: phone,
+                    ),
+                  ),
                 );
               },
               child: FadeTransition(

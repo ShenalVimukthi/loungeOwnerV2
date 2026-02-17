@@ -282,6 +282,9 @@ class _BookingsScreenState extends State<BookingsScreen> {
                                 Text(booking.loungeName ?? 'Lounge'),
                                 Text('Ref: ${booking.bookingReference}'),
                                 Text('Guests: ${booking.guestCount}'),
+                                if (booking.passengerPhone != null &&
+                                    booking.passengerPhone!.isNotEmpty)
+                                  Text('Phone: ${booking.passengerPhone}'),
                               ],
                             ),
                             trailing: Container(

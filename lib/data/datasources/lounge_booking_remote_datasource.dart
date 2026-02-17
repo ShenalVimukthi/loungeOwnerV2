@@ -38,14 +38,22 @@ abstract class LoungeBookingRemoteDataSource {
   /// Get booking by reference
   /// GET /api/v1/lounge-bookings/reference/:reference
   Future<LoungeBookingModel> getBookingByReference(String reference);
+
+  /// Get bookings for staff (Staff view)
+  /// GET /api/v1/lounge-staff/bookings
+  Future<Map<String, dynamic>> getStaffBookings({
+    int? limit,
+    int? offset,
+    String? status,
+    String? date,
+  });
 }
 
 class LoungeBookingRemoteDataSourceImpl
     implements LoungeBookingRemoteDataSource {
   final ApiClient apiClient;
 
-  LoungeBookingRemoteDataSourceImpl({required this.apiClient}) {
-  }
+  LoungeBookingRemoteDataSourceImpl({required this.apiClient}) {}
 
   @override
   Future<List<LoungeBookingModel>> getOwnerBookings({
@@ -112,7 +120,7 @@ class LoungeBookingRemoteDataSourceImpl
     String? loungeId,
   }) async {
     try {
-        final response = loungeId != null
+      final response = loungeId != null
           ? await apiClient.get('/api/v1/lounges/$loungeId/bookings/today')
           : await apiClient.get('/api/v1/lounge-bookings/today');
 
@@ -199,7 +207,7 @@ class LoungeBookingRemoteDataSourceImpl
   @override
   Future<LoungeBookingModel> getBookingById(String bookingId) async {
     try {
-        final response =
+      final response =
           await apiClient.get('/api/v1/lounge-bookings/$bookingId');
 
       if (response.data == null) {
@@ -219,7 +227,7 @@ class LoungeBookingRemoteDataSourceImpl
   @override
   Future<LoungeBookingModel> getBookingByReference(String reference) async {
     try {
-        final response =
+      final response =
           await apiClient.get('/api/v1/lounge-bookings/reference/$reference');
 
       if (response.data == null) {
@@ -231,6 +239,52 @@ class LoungeBookingRemoteDataSourceImpl
       }
 
       return LoungeBookingModel.fromJson(response.data as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw _handleDioError(e);
+    }
+  }
+
+  @override
+  Future<Map<String, dynamic>> getStaffBookings({
+    int? limit,
+    int? offset,
+    String? status,
+    String? date,
+  }) async {
+    try {
+      final queryParameters = <String, dynamic>{};
+      if (limit != null) queryParameters['limit'] = limit;
+      if (offset != null) queryParameters['offset'] = offset;
+      if (status != null) queryParameters['status'] = status;
+      if (date != null) queryParameters['date'] = date;
+
+      final response = await apiClient.get(
+        '/api/v1/lounge-staff/bookings',
+        queryParameters: queryParameters,
+      );
+
+      if (response.data == null) {
+        throw const ServerException(
+          'Empty response from server',
+          'EMPTY_RESPONSE',
+          null,
+        );
+      }
+
+      final data = response.data as Map<String, dynamic>;
+      final bookingsList = data['bookings'] as List<dynamic>? ?? [];
+
+      final bookings = bookingsList
+          .map((json) =>
+              LoungeBookingModel.fromJson(json as Map<String, dynamic>))
+          .toList();
+
+      return {
+        'bookings': bookings,
+        'lounge_id': data['lounge_id'],
+        'limit': data['limit'] ?? limit ?? 50,
+        'offset': data['offset'] ?? offset ?? 0,
+      };
     } on DioException catch (e) {
       throw _handleDioError(e);
     }

@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../config/theme_config.dart';
+import '../../presentation/providers/auth_provider.dart';
+import '../../presentation/providers/lounge_staff_provider.dart';
 import '../../widgets/staff_bottom_nav_bar.dart';
 import '../bus_sedule/upcoming_bus_schedule.dart';
 import '../bus/qr_scanner_screen.dart';
@@ -7,8 +10,30 @@ import '../lounge/loungedetails_page.dart';
 import '../booking/today_bookings_screen.dart';
 import 'staff_profile_page.dart';
 
-class StaffDashboardScreen extends StatelessWidget {
+class StaffDashboardScreen extends StatefulWidget {
   const StaffDashboardScreen({super.key});
+
+  @override
+  State<StaffDashboardScreen> createState() => _StaffDashboardScreenState();
+}
+
+class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
+  @override
+  void initState() {
+    super.initState();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final loungeStaffProvider = Provider.of<LoungeStaffProvider>(
+        context,
+        listen: false,
+      );
+
+      if (loungeStaffProvider.selectedStaff == null &&
+          !loungeStaffProvider.isLoading) {
+        loungeStaffProvider.getMyStaffProfile();
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -77,23 +102,32 @@ class StaffDashboardScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Row(
-                      children: [
-                        Icon(
-                          Icons.wb_sunny_outlined,
-                          color: Colors.white,
-                          size: 28,
-                        ),
-                        SizedBox(width: 8),
-                        Text(
-                          'Welcome Back!',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ],
+                    Consumer2<AuthProvider, LoungeStaffProvider>(
+                      builder: (context, authProvider, staffProvider, _) {
+                        final user = authProvider.user;
+                        final staff = staffProvider.selectedStaff;
+                        final staffName =
+                            staff?.fullName ?? user?.firstName ?? 'Staff';
+
+                        return Row(
+                          children: [
+                            const Icon(
+                              Icons.wb_sunny_outlined,
+                              color: Colors.white,
+                              size: 28,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Welcome Back, $staffName!',
+                              style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        );
+                      },
                     ),
                     const SizedBox(height: 8),
                     Text(
@@ -210,7 +244,8 @@ class StaffDashboardScreen extends StatelessWidget {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => const TodayBookingsScreen(isStaffMode: true),
+                          builder: (context) =>
+                              const TodayBookingsScreen(isStaffMode: true),
                         ),
                       );
                     },

@@ -209,6 +209,49 @@ class LoungeBookingProvider extends ChangeNotifier {
     }
   }
 
+  /// Get bookings for staff member (Staff view)
+  /// Returns bookings for the lounge assigned to the authenticated staff
+  Future<Map<String, dynamic>?> getStaffBookings({
+    int? limit,
+    int? offset,
+    String? status,
+    String? date,
+  }) async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      final result = await remoteDataSource.getStaffBookings(
+        limit: limit,
+        offset: offset,
+        status: status,
+        date: date,
+      );
+
+      _bookings = result['bookings'] as List<LoungeBooking>;
+      _isLoading = false;
+      notifyListeners();
+
+      return {
+        'lounge_id': result['lounge_id'],
+        'limit': result['limit'],
+        'offset': result['offset'],
+        'total_bookings': _bookings.length,
+      };
+    } on AppException catch (e) {
+      _error = e.message;
+      _isLoading = false;
+      notifyListeners();
+      return null;
+    } catch (e) {
+      _error = 'An unexpected error occurred';
+      _isLoading = false;
+      notifyListeners();
+      return null;
+    }
+  }
+
   /// Clear error
   void clearError() {
     _error = null;

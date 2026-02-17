@@ -26,28 +26,110 @@ class LoungeBookingModel extends LoungeBooking {
 
   /// Create model from JSON (from API response)
   factory LoungeBookingModel.fromJson(Map<String, dynamic> json) {
+    final checkInTime = _dateTimeFromJson(json['check_in_time']) ??
+        _dateTimeFromJson(json['scheduled_arrival']);
+    final checkOutTime = _dateTimeFromJson(json['check_out_time']);
+    final createdAt = _dateTimeFromJson(json['created_at']);
+    final updatedAt = _dateTimeFromJson(json['updated_at']) ?? createdAt;
+
+    final passengerInfo = _mapFromJson(json['passenger']) ??
+        _mapFromJson(json['user']) ??
+        _mapFromJson(json['customer']);
+    final passengerName = _stringFromJson(json['passenger_name']) ??
+        _stringFromJson(json['primary_guest_name']) ??
+        _stringFromJson(json['customer_name']) ??
+        _stringFromJson(passengerInfo?['full_name']) ??
+        _stringFromJson(passengerInfo?['name']) ??
+        _combineName(
+          _stringFromJson(passengerInfo?['first_name']),
+          _stringFromJson(passengerInfo?['last_name']),
+        );
+    final passengerPhone = _stringFromJson(json['passenger_phone']) ??
+        _stringFromJson(json['primary_guest_phone']) ??
+        _stringFromJson(json['customer_phone']) ??
+        _stringFromJson(passengerInfo?['phone']) ??
+        _stringFromJson(passengerInfo?['phone_number']);
+
     return LoungeBookingModel(
-      id: json['id'] as String,
-      loungeId: json['lounge_id'] as String,
-      passengerId: json['passenger_id'] as String,
-      bookingReference: json['booking_reference'] as String,
-      checkInTime: DateTime.parse(json['check_in_time'] as String),
-      checkOutTime: json['check_out_time'] != null
-          ? DateTime.parse(json['check_out_time'] as String)
-          : null,
-      durationHours: json['duration_hours'] as int? ?? 1,
-      guestCount: json['guest_count'] as int? ?? 1,
-      status: json['status'] as String? ?? 'pending',
-      amountPaid: json['amount_paid'] as String? ?? '0.00',
-      paymentMethod: json['payment_method'] as String?,
-      specialRequests: json['special_requests'] as String?,
-      createdAt: DateTime.parse(json['created_at'] as String),
-      updatedAt: DateTime.parse(json['updated_at'] as String),
-      loungeName: json['lounge_name'] as String?,
-      loungeAddress: json['lounge_address'] as String?,
-      passengerName: json['passenger_name'] as String?,
-      passengerPhone: json['passenger_phone'] as String?,
+      id: _stringFromJson(json['id']) ?? '',
+      loungeId: _stringFromJson(json['lounge_id']) ?? '',
+      passengerId: _stringFromJson(json['passenger_id']) ?? '',
+      bookingReference: _stringFromJson(json['booking_reference']) ?? '',
+      checkInTime: checkInTime ?? DateTime.now(),
+      checkOutTime: checkOutTime,
+      durationHours: _intFromJson(json['duration_hours']) ?? 1,
+      guestCount: _intFromJson(json['guest_count']) ??
+          _intFromJson(json['number_of_guests']) ??
+          1,
+      status: _stringFromJson(json['status']) ?? 'pending',
+      amountPaid: _stringFromJson(json['amount_paid']) ??
+          _stringFromJson(json['total_amount']) ??
+          '0.00',
+      paymentMethod: _stringFromJson(json['payment_method']),
+      specialRequests: _stringFromJson(json['special_requests']),
+      createdAt: createdAt ?? DateTime.now(),
+      updatedAt: updatedAt ?? DateTime.now(),
+      loungeName: _stringFromJson(json['lounge_name']),
+      loungeAddress: _stringFromJson(json['lounge_address']),
+      passengerName: passengerName,
+      passengerPhone: passengerPhone,
     );
+  }
+
+  static String? _stringFromJson(dynamic value) {
+    if (value == null) return null;
+    if (value is String) return value;
+    if (value is num || value is bool) return value.toString();
+    if (value is Map<String, dynamic>) {
+      final valid = value['Valid'];
+      if (valid is bool && valid == false) return null;
+      if (value.containsKey('String')) return value['String']?.toString();
+      if (value.containsKey('Int64')) return value['Int64']?.toString();
+      if (value.containsKey('Float64')) return value['Float64']?.toString();
+    }
+    return null;
+  }
+
+  static Map<String, dynamic>? _mapFromJson(dynamic value) {
+    if (value is Map<String, dynamic>) return value;
+    return null;
+  }
+
+  static String? _combineName(String? firstName, String? lastName) {
+    final parts = [firstName, lastName]
+        .where((part) => part != null && part!.trim().isNotEmpty)
+        .map((part) => part!.trim())
+        .toList();
+    if (parts.isEmpty) return null;
+    return parts.join(' ');
+  }
+
+  static int? _intFromJson(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value);
+    if (value is Map<String, dynamic>) {
+      final valid = value['Valid'];
+      if (valid is bool && valid == false) return null;
+      if (value.containsKey('Int64')) {
+        final raw = value['Int64'];
+        if (raw is int) return raw;
+        if (raw is num) return raw.toInt();
+        if (raw is String) return int.tryParse(raw);
+      }
+    }
+    return null;
+  }
+
+  static DateTime? _dateTimeFromJson(dynamic value) {
+    final raw = _stringFromJson(value);
+    if (raw == null || raw.isEmpty) return null;
+    try {
+      return DateTime.parse(raw);
+    } catch (_) {
+      return null;
+    }
   }
 
   /// Convert model to JSON (for API requests)
