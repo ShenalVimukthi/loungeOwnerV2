@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/theme_config.dart';
 import '../../presentation/providers/auth_provider.dart';
+import '../../presentation/providers/lounge_booking_provider.dart';
 import '../../presentation/providers/lounge_staff_provider.dart';
 import '../../widgets/staff_bottom_nav_bar.dart';
 import '../bus_sedule/upcoming_bus_schedule.dart';
@@ -18,11 +21,16 @@ class StaffDashboardScreen extends StatefulWidget {
 }
 
 class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
+  int _todayBookingsCount = 0;
+  int _todayOrdersCount = 0;
+  Timer? _overviewRefreshTimer;
+  bool _isRefreshingOverview = false;
+
   @override
   void initState() {
     super.initState();
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       final loungeStaffProvider = Provider.of<LoungeStaffProvider>(
         context,
         listen: false,
@@ -30,9 +38,131 @@ class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
 
       if (loungeStaffProvider.selectedStaff == null &&
           !loungeStaffProvider.isLoading) {
-        loungeStaffProvider.getMyStaffProfile();
+        await loungeStaffProvider.getMyStaffProfile();
       }
+
+      await _loadTodayOverviewCounts();
+      _startOverviewAutoRefresh();
     });
+  }
+
+  void _startOverviewAutoRefresh() {
+    _overviewRefreshTimer?.cancel();
+    _overviewRefreshTimer = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) {
+        if (!mounted || _isRefreshingOverview) return;
+        _loadTodayOverviewCounts();
+      },
+    );
+  }
+
+  Future<void> _loadTodayOverviewCounts() async {
+    if (_isRefreshingOverview) return;
+    _isRefreshingOverview = true;
+
+    final loungeStaffProvider = Provider.of<LoungeStaffProvider>(
+      context,
+      listen: false,
+    );
+    final bookingProvider = Provider.of<LoungeBookingProvider>(
+      context,
+      listen: false,
+    );
+
+    final now = DateTime.now();
+    final dateFilter = '${now.year.toString().padLeft(4, '0')}-'
+        '${now.month.toString().padLeft(2, '0')}-'
+        '${now.day.toString().padLeft(2, '0')}';
+
+    try {
+      final bookingsResult = await bookingProvider.getStaffBookings(
+        date: dateFilter,
+        limit: 100,
+      );
+
+      int ordersCount = 0;
+
+      final loungeIdFromProfile = loungeStaffProvider.selectedStaff?.loungeId;
+      final loungeIdFromBookings = bookingsResult?['lounge_id']?.toString();
+      final loungeId =
+          (loungeIdFromProfile != null && loungeIdFromProfile.isNotEmpty)
+              ? loungeIdFromProfile
+              : loungeIdFromBookings;
+
+      if (loungeId != null && loungeId.isNotEmpty) {
+        try {
+          final bookingsWithOrders = await bookingProvider.remoteDataSource
+              .getLoungeBookingsWithOrders(
+            loungeId: loungeId,
+            bookingDate: dateFilter,
+            date: dateFilter,
+            limit: 100,
+            offset: 0,
+          );
+
+          print('📊 [Staff Dashboard] Bookings with Orders Response:');
+          print('   Lounge ID: $loungeId');
+          print('   Date: $dateFilter');
+          print('   Response: $bookingsWithOrders');
+
+          final totalOrdersRaw = bookingsWithOrders['total_orders'];
+          print(
+              '   Total Orders Raw: $totalOrdersRaw (type: ${totalOrdersRaw.runtimeType})');
+          ordersCount = totalOrdersRaw is int
+              ? totalOrdersRaw
+              : int.tryParse(totalOrdersRaw?.toString() ?? '0') ?? 0;
+          print('   Total Orders Count: $ordersCount');
+        } catch (e) {
+          print('❌ [Staff Dashboard] Error fetching bookings with orders: $e');
+          ordersCount = 0;
+        }
+      }
+
+      if (ordersCount == 0 && bookingProvider.bookings.isNotEmpty) {
+        print(
+            '📋 [Staff Dashboard] Falling back to per-booking orders (${bookingProvider.bookings.length} bookings)');
+        for (final booking in bookingProvider.bookings) {
+          try {
+            final bookingWithOrders =
+                await bookingProvider.remoteDataSource.getBookingWithOrders(
+              bookingId: booking.id,
+              date: dateFilter,
+            );
+
+            print(
+                '   Booking ${booking.id} orders: ${bookingWithOrders['orders_count']}');
+
+            final ordersRaw = bookingWithOrders['orders_count'];
+            ordersCount += ordersRaw is int
+                ? ordersRaw
+                : int.tryParse(ordersRaw?.toString() ?? '0') ?? 0;
+          } catch (e) {
+            print('   ❌ Error fetching orders for booking ${booking.id}: $e');
+            continue;
+          }
+        }
+        print('   📋 Total Orders after fallback: $ordersCount');
+      }
+
+      if (!mounted) return;
+
+      setState(() {
+        _todayBookingsCount = bookingProvider.bookings.length;
+        _todayOrdersCount = ordersCount;
+      });
+
+      print(
+          '✅ [Staff Dashboard] Overview updated - Bookings: $_todayBookingsCount, Orders: $_todayOrdersCount');
+    } finally {
+      _isRefreshingOverview = false;
+    }
+  }
+
+  @override
+  void dispose() {
+    _overviewRefreshTimer?.cancel();
+    super.dispose();
   }
 
   @override
@@ -159,7 +289,7 @@ class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
                   Expanded(
                     child: _buildStatCard(
                       title: 'Orders',
-                      value: '12',
+                      value: _todayOrdersCount.toString(),
                       icon: Icons.receipt_long,
                       color: Colors.blue.shade600,
                     ),
@@ -168,7 +298,7 @@ class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
                   Expanded(
                     child: _buildStatCard(
                       title: 'Bookings',
-                      value: '8',
+                      value: _todayBookingsCount.toString(),
                       icon: Icons.event_available,
                       color: Colors.green.shade600,
                     ),
@@ -240,14 +370,17 @@ class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
                     context: context,
                     label: 'View Bookings',
                     icon: Icons.calendar_today,
-                    onTap: () {
-                      Navigator.push(
+                    onTap: () async {
+                      await Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (context) =>
                               const TodayBookingsScreen(isStaffMode: true),
                         ),
                       );
+
+                      if (!mounted) return;
+                      _loadTodayOverviewCounts();
                     },
                   ),
                 ],
