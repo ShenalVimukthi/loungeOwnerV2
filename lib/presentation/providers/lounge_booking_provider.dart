@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import '../../domain/entities/lounge_booking.dart';
 import '../../data/datasources/lounge_booking_remote_datasource.dart';
+import '../../data/models/lounge_booking_model.dart';
 import '../../core/error/exceptions.dart';
 
 /// Provider: Lounge Booking Management
@@ -206,6 +207,71 @@ class LoungeBookingProvider extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
       return false;
+    }
+  }
+
+  /// Get booking by QR code data
+  Future<bool> getBookingByQrCodeData(String qrCodeData) async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      final booking = await remoteDataSource.getBookingByQrCodeData(qrCodeData);
+      _selectedBooking = booking;
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } on AppException catch (e) {
+      _error = e.message;
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _error = 'An unexpected error occurred';
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Toggle check-in/check-out for booking
+  Future<String?> toggleBookingCheckInOut({
+    required String bookingId,
+    double? latitude,
+    double? longitude,
+    String? locationName,
+  }) async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      final result = await remoteDataSource.toggleBookingCheckInOut(
+        bookingId: bookingId,
+        latitude: latitude,
+        longitude: longitude,
+        locationName: locationName,
+      );
+
+      final bookingJson = result['booking'];
+      if (bookingJson is Map<String, dynamic>) {
+        _selectedBooking = LoungeBookingModel.fromJson(bookingJson);
+      }
+
+      _isLoading = false;
+      notifyListeners();
+      return result['message']?.toString();
+    } on AppException catch (e) {
+      _error = e.message;
+      _isLoading = false;
+      notifyListeners();
+      return null;
+    } catch (e) {
+      _error = 'An unexpected error occurred';
+      _isLoading = false;
+      notifyListeners();
+      return null;
     }
   }
 

@@ -17,7 +17,7 @@ if (localPropertiesFile.exists()) {
 
 android {
     namespace = "com.example.lounge_owner_app"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 36  // Match dependencies requiring SDK 36
     ndkVersion = "27.0.12077973"
 
     compileOptions {
@@ -34,8 +34,8 @@ android {
         applicationId = "com.example.lounge_owner_app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
+        minSdk = flutter.minSdkVersion  // Ensure minimum SDK is set
+        targetSdk = 36  // Match compileSdk and dependencies
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         
@@ -52,6 +52,22 @@ android {
             // Disable minification and shrinking for now (larger APK but avoids ProGuard/R8 issues)
             isMinifyEnabled = false
             isShrinkResources = false
+        }
+    }
+
+    lint {
+        disable += "TypographyFractions"
+        disable += "MissingTranslation"
+        disable += "ExtraTranslation"
+        disable += "RtlSymmetry"
+        disable += "MissingDimensionResource"
+        disable += "MissingQualifiers"
+        checkGeneratedSources = false
+    }
+
+    packagingOptions {
+        resources {
+            excludes += "/META-INF/proguard/androidx-*.pro"
         }
     }
 }

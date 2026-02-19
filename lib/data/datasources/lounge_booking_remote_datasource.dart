@@ -39,6 +39,10 @@ abstract class LoungeBookingRemoteDataSource {
   /// GET /api/v1/lounge-bookings/reference/:reference
   Future<LoungeBookingModel> getBookingByReference(String reference);
 
+  /// Get booking by QR code data
+  /// GET /api/v1/lounge-bookings/qr/:qr_code_data
+  Future<LoungeBookingModel> getBookingByQrCodeData(String qrCodeData);
+
   /// Get bookings for staff (Staff view)
   /// GET /api/v1/lounge-staff/bookings
   Future<Map<String, dynamic>> getStaffBookings({
@@ -71,6 +75,15 @@ abstract class LoungeBookingRemoteDataSource {
   Future<Map<String, dynamic>> getBookingWithOrders({
     required String bookingId,
     String? date,
+  });
+
+  /// Toggle check-in/check-out for booking
+  /// POST /api/v1/lounge-bookings/:id/check-in-out
+  Future<Map<String, dynamic>> toggleBookingCheckInOut({
+    required String bookingId,
+    double? latitude,
+    double? longitude,
+    String? locationName,
   });
 }
 
@@ -275,6 +288,28 @@ class LoungeBookingRemoteDataSourceImpl
   }
 
   @override
+  Future<LoungeBookingModel> getBookingByQrCodeData(String qrCodeData) async {
+    try {
+      final encodedQrCodeData = Uri.encodeComponent(qrCodeData);
+      final response = await apiClient.get(
+        '/api/v1/lounge-bookings/qr/$encodedQrCodeData',
+      );
+
+      if (response.data == null) {
+        throw const ServerException(
+          'Empty response from server',
+          'EMPTY_RESPONSE',
+          null,
+        );
+      }
+
+      return LoungeBookingModel.fromJson(response.data as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw _handleDioError(e);
+    }
+  }
+
+  @override
   Future<Map<String, dynamic>> getStaffBookings({
     int? limit,
     int? offset,
@@ -396,6 +431,40 @@ class LoungeBookingRemoteDataSourceImpl
       final response = await apiClient.get(
         '/api/v1/lounge-bookings/$bookingId/with-orders',
         queryParameters: queryParameters,
+      );
+
+      if (response.data == null) {
+        throw const ServerException(
+          'Empty response from server',
+          'EMPTY_RESPONSE',
+          null,
+        );
+      }
+
+      return response.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      throw _handleDioError(e);
+    }
+  }
+
+  @override
+  Future<Map<String, dynamic>> toggleBookingCheckInOut({
+    required String bookingId,
+    double? latitude,
+    double? longitude,
+    String? locationName,
+  }) async {
+    try {
+      final payload = <String, dynamic>{};
+      if (latitude != null) payload['latitude'] = latitude;
+      if (longitude != null) payload['longitude'] = longitude;
+      if (locationName != null && locationName.trim().isNotEmpty) {
+        payload['location_name'] = locationName.trim();
+      }
+
+      final response = await apiClient.post(
+        '/api/v1/lounge-bookings/$bookingId/check-in-out',
+        data: payload.isEmpty ? null : payload,
       );
 
       if (response.data == null) {
