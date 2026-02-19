@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../config/theme_config.dart';
 import '../../config/constants.dart';
 import '../../presentation/providers/lounge_owner_provider.dart';
@@ -25,6 +26,8 @@ class LoungeOwnerHomeScreen extends StatefulWidget {
 }
 
 class _LoungeOwnerHomeScreenState extends State<LoungeOwnerHomeScreen> {
+  bool _hideApprovedVerificationBanner = false;
+
   @override
   void initState() {
     super.initState();
@@ -36,6 +39,35 @@ class _LoungeOwnerHomeScreenState extends State<LoungeOwnerHomeScreen> {
 
   Future<void> _loadData() async {
     await Future.wait([_loadProfile(), _loadMyLounges()]);
+    await _loadVerificationBannerPreference();
+  }
+
+  String _verificationBannerPrefKey(String? userId) {
+    return 'owner_verified_banner_dismissed_${userId ?? 'unknown'}';
+  }
+
+  Future<void> _loadVerificationBannerPreference() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final prefs = await SharedPreferences.getInstance();
+    final key = _verificationBannerPrefKey(authProvider.user?.id);
+    final dismissed = prefs.getBool(key) ?? false;
+
+    if (!mounted) return;
+    setState(() {
+      _hideApprovedVerificationBanner = dismissed;
+    });
+  }
+
+  Future<void> _dismissApprovedVerificationBanner() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final prefs = await SharedPreferences.getInstance();
+    final key = _verificationBannerPrefKey(authProvider.user?.id);
+    await prefs.setBool(key, true);
+
+    if (!mounted) return;
+    setState(() {
+      _hideApprovedVerificationBanner = true;
+    });
   }
 
   Future<void> _loadProfile() async {
@@ -112,9 +144,9 @@ class _LoungeOwnerHomeScreenState extends State<LoungeOwnerHomeScreen> {
     const bg = Color(0xFFFFFBF5);
 
     return Consumer3<LoungeOwnerProvider, AuthProvider, RegistrationProvider>(
-      builder: (context, loungeOwnerProvider, authProvider, registrationProvider, child) {
+      builder: (context, loungeOwnerProvider, authProvider,
+          registrationProvider, child) {
         final loungeOwner = loungeOwnerProvider.loungeOwner;
-        final user = authProvider.user;
         final lounges = registrationProvider.myLounges;
         final isLoading =
             loungeOwnerProvider.isLoading || registrationProvider.isLoading;
@@ -239,8 +271,8 @@ class _LoungeOwnerHomeScreenState extends State<LoungeOwnerHomeScreen> {
                                           MaterialPageRoute(
                                             builder: (context) =>
                                                 const StaffRegistrationPage(
-                                                  isAddedByAdmin: true,
-                                                ),
+                                              isAddedByAdmin: true,
+                                            ),
                                           ),
                                         );
                                       },
@@ -370,6 +402,39 @@ class _LoungeOwnerHomeScreenState extends State<LoungeOwnerHomeScreen> {
   Widget _buildVerificationBanner(String? status) {
     if (status == null) return const SizedBox.shrink();
 
+    if (status == 'approved' && _hideApprovedVerificationBanner) {
+      return Align(
+        alignment: Alignment.centerLeft,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: const Color(0xFFE8F5E9),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: const Color(0xFF4CAF50), width: 1.2),
+          ),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.verified,
+                color: Color(0xFF2E7D32),
+                size: 16,
+              ),
+              SizedBox(width: 6),
+              Text(
+                'Verified',
+                style: TextStyle(
+                  color: Color(0xFF2E7D32),
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     Color bgColor;
     Color borderColor;
     Color textColor;
@@ -415,6 +480,7 @@ class _LoungeOwnerHomeScreenState extends State<LoungeOwnerHomeScreen> {
         border: Border.all(color: borderColor, width: 1.5),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(icon, color: textColor, size: 28),
           const SizedBox(width: 12),
@@ -441,6 +507,19 @@ class _LoungeOwnerHomeScreenState extends State<LoungeOwnerHomeScreen> {
               ],
             ),
           ),
+          if (status == 'approved')
+            InkWell(
+              onTap: _dismissApprovedVerificationBanner,
+              borderRadius: BorderRadius.circular(16),
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: Icon(
+                  Icons.close,
+                  size: 18,
+                  color: textColor,
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -456,14 +535,10 @@ class _LoungeOwnerHomeScreenState extends State<LoungeOwnerHomeScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isApproved
-            ? const Color(0xFFE3F2FD)
-            : const Color(0xFFFFF3E0),
+        color: isApproved ? const Color(0xFFE3F2FD) : const Color(0xFFFFF3E0),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isApproved
-              ? const Color(0xFF2196F3)
-              : const Color(0xFFFFA726),
+          color: isApproved ? const Color(0xFF2196F3) : const Color(0xFFFFA726),
           width: 1.5,
         ),
       ),

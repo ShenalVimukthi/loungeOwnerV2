@@ -285,7 +285,7 @@ class _AddTukTukPageState extends State<AddTukTukPage> {
                 // Lounge Selection Dropdown
                 Consumer<RegistrationProvider>(
                   builder: (context, provider, child) {
-                    final lounges = provider.myLounges;
+                    final lounges = provider.verifiedLounges;
 
                     return Container(
                       decoration: BoxDecoration(
@@ -297,6 +297,10 @@ class _AddTukTukPageState extends State<AddTukTukPage> {
                         value: _selectedLoungeId,
                         hint: const Text(
                           'Select Lounge',
+                          style: TextStyle(fontSize: 14, color: Colors.grey),
+                        ),
+                        disabledHint: const Text(
+                          'No approved lounges available',
                           style: TextStyle(fontSize: 14, color: Colors.grey),
                         ),
                         items: lounges.map((lounge) {
@@ -311,6 +315,13 @@ class _AddTukTukPageState extends State<AddTukTukPage> {
                             ),
                           );
                         }).toList(),
+                        onChanged: lounges.isEmpty
+                            ? null
+                            : (value) {
+                                setState(() {
+                                  _selectedLoungeId = value;
+                                });
+                              },
                         decoration: const InputDecoration(
                           prefixIcon: Icon(
                             Icons.apartment_outlined,
@@ -334,15 +345,13 @@ class _AddTukTukPageState extends State<AddTukTukPage> {
                         dropdownColor: Colors.white,
                         borderRadius: BorderRadius.circular(12),
                         validator: (value) {
+                          if (lounges.isEmpty) {
+                            return 'No approved lounges available';
+                          }
                           if (value == null || value.isEmpty) {
                             return 'Please select a lounge';
                           }
                           return null;
-                        },
-                        onChanged: (value) {
-                          setState(() {
-                            _selectedLoungeId = value;
-                          });
                         },
                       ),
                     );

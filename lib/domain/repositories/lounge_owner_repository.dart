@@ -34,4 +34,14 @@ abstract class LoungeOwnerRepository {
 
   /// Complete registration
   Future<Either<Failure, void>> completeRegistration();
+
+  /// Update lounge owner profile
+  Future<Either<Failure, LoungeOwner>> updateProfile({
+    String? businessName,
+    String? businessLicense,
+    String? managerFullName,
+    String? managerNicNumber,
+    String? managerEmail,
+    String? district,
+  });
 }

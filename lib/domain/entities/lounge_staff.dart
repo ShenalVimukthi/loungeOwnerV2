@@ -42,4 +42,41 @@ class LoungeStaff {
   bool get isActive => employmentStatus == 'active';
   bool get isSuspended => employmentStatus == 'suspended';
   bool get isTerminated => employmentStatus == 'terminated';
+
+  /// Create a copy of this LoungeStaff with optional field overrides
+  LoungeStaff copyWith({
+    String? id,
+    String? userId,
+    String? loungeId,
+    String? fullName,
+    String? nicNumber,
+    String? email,
+    String? phone,
+    bool? profileCompleted,
+    String? approvalStatus,
+    String? employmentStatus,
+    DateTime? hiredDate,
+    DateTime? terminatedDate,
+    String? notes,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) {
+    return LoungeStaff(
+      id: id ?? this.id,
+      userId: userId ?? this.userId,
+      loungeId: loungeId ?? this.loungeId,
+      fullName: fullName ?? this.fullName,
+      nicNumber: nicNumber ?? this.nicNumber,
+      email: email ?? this.email,
+      phone: phone ?? this.phone,
+      profileCompleted: profileCompleted ?? this.profileCompleted,
+      approvalStatus: approvalStatus ?? this.approvalStatus,
+      employmentStatus: employmentStatus ?? this.employmentStatus,
+      hiredDate: hiredDate ?? this.hiredDate,
+      terminatedDate: terminatedDate ?? this.terminatedDate,
+      notes: notes ?? this.notes,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
 }

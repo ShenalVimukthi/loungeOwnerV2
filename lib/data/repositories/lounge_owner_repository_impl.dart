@@ -36,9 +36,9 @@ class LoungeOwnerRepositoryImpl implements LoungeOwnerRepository {
       );
       return const Right(null);
     } on ServerException catch (e) {
-      return Left(ServerFailure( e.message));
+      return Left(ServerFailure(e.message));
     } catch (e) {
-      return Left(ServerFailure( 'Unexpected error: ${e.toString()}'));
+      return Left(ServerFailure('Unexpected error: ${e.toString()}'));
     }
   }
 
@@ -52,20 +52,19 @@ class LoungeOwnerRepositoryImpl implements LoungeOwnerRepository {
   }) async {
     try {
       final response = await remoteDataSource.uploadManagerNIC(
-        managerNicNumber: managerNicNumber,
-        managerNicFrontUrl: managerNicFrontUrl,
-        managerNicBackUrl: managerNicBackUrl,
-        ocrExtractedText: ocrExtracted,
-        ocrMatched: ocrMatched
-      );
+          managerNicNumber: managerNicNumber,
+          managerNicFrontUrl: managerNicFrontUrl,
+          managerNicBackUrl: managerNicBackUrl,
+          ocrExtractedText: ocrExtracted,
+          ocrMatched: ocrMatched);
 
       // Backend returns { "ocr_matched": true/false, "message": "..." }
       final ocrMatchedResult = response['ocr_matched'] as bool? ?? false;
       return Right(ocrMatchedResult);
     } on ServerException catch (e) {
-      return Left(ServerFailure( e.message));
+      return Left(ServerFailure(e.message));
     } catch (e) {
-      return Left(ServerFailure( 'Unexpected error: ${e.toString()}'));
+      return Left(ServerFailure('Unexpected error: ${e.toString()}'));
     }
   }
 
@@ -79,22 +78,23 @@ class LoungeOwnerRepositoryImpl implements LoungeOwnerRepository {
       final dateTime = DateTime.parse(blockedUntil);
       return Right(dateTime);
     } on ServerException catch (e) {
-      return Left(ServerFailure( e.message));
+      return Left(ServerFailure(e.message));
     } catch (e) {
-      return Left(ServerFailure( 'Unexpected error: ${e.toString()}'));
+      return Left(ServerFailure('Unexpected error: ${e.toString()}'));
     }
   }
 
   @override
-  Future<Either<Failure, RegistrationProgress>> getRegistrationProgress() async {
+  Future<Either<Failure, RegistrationProgress>>
+      getRegistrationProgress() async {
     try {
       final json = await remoteDataSource.getRegistrationProgress();
       final progress = RegistrationProgressModel.fromJson(json);
       return Right(progress);
     } on ServerException catch (e) {
-      return Left(ServerFailure( e.message));
+      return Left(ServerFailure(e.message));
     } catch (e) {
-      return Left(ServerFailure( 'Unexpected error: ${e.toString()}'));
+      return Left(ServerFailure('Unexpected error: ${e.toString()}'));
     }
   }
 
@@ -104,14 +104,15 @@ class LoungeOwnerRepositoryImpl implements LoungeOwnerRepository {
       final json = await remoteDataSource.getProfile();
       print('🔍 REPOSITORY - Got JSON, creating model...');
       final profile = LoungeOwnerModel.fromJson(json);
-      print('🔍 REPOSITORY - Model created successfully: ${profile.registrationStep}, ${profile.profileCompleted}');
+      print(
+          '🔍 REPOSITORY - Model created successfully: ${profile.registrationStep}, ${profile.profileCompleted}');
       return Right(profile);
     } on ServerException catch (e) {
       print('❌ REPOSITORY - ServerException: ${e.message}');
-      return Left(ServerFailure( e.message));
+      return Left(ServerFailure(e.message));
     } catch (e) {
       print('❌ REPOSITORY - Unexpected error: $e');
-      return Left(ServerFailure( 'Unexpected error: ${e.toString()}'));
+      return Left(ServerFailure('Unexpected error: ${e.toString()}'));
     }
   }
 
@@ -121,9 +122,36 @@ class LoungeOwnerRepositoryImpl implements LoungeOwnerRepository {
       // Backend automatically marks registration as complete after adding first lounge
       return const Right(null);
     } on ServerException catch (e) {
-      return Left(ServerFailure( e.message));
+      return Left(ServerFailure(e.message));
     } catch (e) {
-      return Left(ServerFailure( 'Unexpected error: ${e.toString()}'));
+      return Left(ServerFailure('Unexpected error: ${e.toString()}'));
+    }
+  }
+
+  @override
+  Future<Either<Failure, LoungeOwner>> updateProfile({
+    String? businessName,
+    String? businessLicense,
+    String? managerFullName,
+    String? managerNicNumber,
+    String? managerEmail,
+    String? district,
+  }) async {
+    try {
+      final json = await remoteDataSource.updateProfile(
+        businessName: businessName,
+        businessLicense: businessLicense,
+        managerFullName: managerFullName,
+        managerNicNumber: managerNicNumber,
+        managerEmail: managerEmail,
+        district: district,
+      );
+      final profile = LoungeOwnerModel.fromJson(json);
+      return Right(profile);
+    } on ServerException catch (e) {
+      return Left(ServerFailure(e.message));
+    } catch (e) {
+      return Left(ServerFailure('Unexpected error: ${e.toString()}'));
     }
   }
 }

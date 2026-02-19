@@ -7,7 +7,7 @@ import '../../config/theme_config.dart';
 import '../../presentation/providers/auth_provider.dart';
 import '../../presentation/providers/lounge_staff_provider.dart';
 import '../../screens/auth/staff_pending_approval_screen.dart';
-import '../../screens/staff/staff_profile_page.dart';
+import '../../screens/staff/staff_dashboard_screen.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/error_dialog.dart';
 import '../../widgets/loading_overlay.dart';
@@ -129,7 +129,7 @@ class _StaffRegisteredLoginScreenState
         if (staff.isApproved) {
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (_) => const StaffProfilePage()),
+            MaterialPageRoute(builder: (_) => const StaffDashboardScreen()),
           );
         } else {
           Navigator.pushReplacement(

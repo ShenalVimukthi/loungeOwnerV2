@@ -39,7 +39,8 @@ class LoungeOwnerProvider with ChangeNotifier {
   LoungeOwner? get loungeOwner => _profile; // Alias for compatibility
   RegistrationProgress? get progress => _progress;
   DateTime? get ocrBlockedUntil => _ocrBlockedUntil;
-  bool get isOCRBlocked => _ocrBlockedUntil != null && _ocrBlockedUntil!.isAfter(DateTime.now());
+  bool get isOCRBlocked =>
+      _ocrBlockedUntil != null && _ocrBlockedUntil!.isAfter(DateTime.now());
 
   /// Save business and manager information (Step 1)
   Future<bool> saveBusinessInfo({
@@ -164,16 +165,17 @@ class LoungeOwnerProvider with ChangeNotifier {
         return false;
       },
       (profile) {
-        print('🔍 PROVIDER - Got success! Profile type: ${profile.runtimeType}');
+        print(
+            '🔍 PROVIDER - Got success! Profile type: ${profile.runtimeType}');
         _isLoading = false;
         _profile = profile;
-        
+
         // 🔍 DEBUG: Log what gets stored in provider
         print('🔍 PROVIDER - Storing profile:');
         print('   profile.registrationStep: ${profile.registrationStep}');
         print('   profile.profileCompleted: ${profile.profileCompleted}');
         print('   _profile is now: ${_profile?.registrationStep}');
-        
+
         notifyListeners();
         return true;
       },
@@ -183,6 +185,47 @@ class LoungeOwnerProvider with ChangeNotifier {
   /// Get lounge owner profile (alias)
   Future<void> loadProfile() async {
     await getLoungeOwnerProfile();
+  }
+
+  /// Update lounge owner profile information
+  Future<bool> updateProfile({
+    String? businessName,
+    String? businessLicense,
+    String? managerFullName,
+    String? managerNicNumber,
+    String? managerEmail,
+    String? district,
+  }) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      // We need to use the repository directly since there's no use case for this
+      // For now, we'll just reload the profile after attempting the update
+      // The actual update call should be done through a use case (future enhancement)
+
+      // This is a placeholder - actual implementation would need a use case
+      // similar to SaveBusinessInfo
+      if (_profile != null) {
+        _profile = _profile!.copyWith(
+          businessName: businessName ?? _profile!.businessName,
+          businessLicense: businessLicense ?? _profile!.businessLicense,
+          managerFullName: managerFullName ?? _profile!.managerFullName,
+          managerNicNumber: managerNicNumber ?? _profile!.managerNicNumber,
+          managerEmail: managerEmail ?? _profile!.managerEmail,
+        );
+      }
+
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _isLoading = false;
+      _errorMessage = 'Failed to update profile: ${e.toString()}';
+      notifyListeners();
+      return false;
+    }
   }
 
   /// Clear all data

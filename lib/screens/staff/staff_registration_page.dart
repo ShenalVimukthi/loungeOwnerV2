@@ -58,9 +58,10 @@ class _StaffRegistrationPageState extends State<StaffRegistrationPage> {
     if (registrationProvider.myLounges.isEmpty) {
       await registrationProvider.loadMyLounges();
     }
-    if (mounted && registrationProvider.myLounges.isNotEmpty) {
+    final lounges = registrationProvider.verifiedLounges;
+    if (mounted && lounges.isNotEmpty) {
       setState(() {
-        _selectedLoungeId = registrationProvider.myLounges.first.id;
+        _selectedLoungeId = lounges.first.id;
       });
     }
   }
@@ -409,7 +410,7 @@ class _StaffRegistrationPageState extends State<StaffRegistrationPage> {
                   const SizedBox(height: 16),
                   Consumer<RegistrationProvider>(
                     builder: (context, registrationProvider, child) {
-                      final lounges = registrationProvider.myLounges;
+                      final lounges = registrationProvider.verifiedLounges;
 
                       if (lounges.isEmpty) {
                         return Container(
@@ -420,7 +421,7 @@ class _StaffRegistrationPageState extends State<StaffRegistrationPage> {
                             border: Border.all(color: AppColors.border),
                           ),
                           child: const Text(
-                            'No lounges found. Please create a lounge first.',
+                            'No approved lounges found. Only approved lounges can have staff.',
                             style: TextStyle(color: AppColors.textSecondary),
                           ),
                         );

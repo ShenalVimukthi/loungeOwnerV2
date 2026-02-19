@@ -29,6 +29,12 @@ class ApiConfig {
   static const String searchTripsEndpoint = '/api/v1/search';
   static const String bookableTripsEndpoint = '/api/v1/bookable-trips';
 
+  // Lounge owner and staff profile endpoints
+  static const String loungeOwnerProfileUpdateEndpoint =
+      '/api/v1/lounge-owner/profile/update';
+  static const String loungeStaffProfileUpdateEndpoint =
+      '/api/v1/lounge-staff/profile/update';
+
   // Helper methods to get the correct base URL (all point to local)
   static String getAuthBaseUrl() => localBaseUrl;
   static String getLoungeBaseUrl() => localBaseUrl;
@@ -45,6 +51,12 @@ class ApiConfig {
       '${getAuthBaseUrl()}$updateProfileEndpoint';
   static String get logoutUrl => '${getAuthBaseUrl()}$logoutEndpoint';
   static String get staffUrl => '${getAuthBaseUrl()}$staffEndpoint';
+
+  // Lounge owner and staff profile update URLs
+  static String get loungeOwnerProfileUpdateUrl =>
+      '${getLoungeBaseUrl()}$loungeOwnerProfileUpdateEndpoint';
+  static String get loungeStaffProfileUpdateUrl =>
+      '${getLoungeBaseUrl()}$loungeStaffProfileUpdateEndpoint';
 
   // Lounge-specific APIs use local backend
   static String loungeUrl(String loungeId, String path) =>

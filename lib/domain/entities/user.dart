@@ -52,6 +52,37 @@ class User {
   /// Business logic: Check if user is conductor
   bool get isConductor => hasRole('conductor');
 
+  /// Create a copy of this User with optional field overrides
+  User copyWith({
+    String? id,
+    String? phoneNumber,
+    String? email,
+    String? firstName,
+    String? lastName,
+    String? nic,
+    List<String>? roles,
+    bool? profileCompleted,
+    bool? phoneVerified,
+    String? status,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) {
+    return User(
+      id: id ?? this.id,
+      phoneNumber: phoneNumber ?? this.phoneNumber,
+      email: email ?? this.email,
+      firstName: firstName ?? this.firstName,
+      lastName: lastName ?? this.lastName,
+      nic: nic ?? this.nic,
+      roles: roles ?? this.roles,
+      profileCompleted: profileCompleted ?? this.profileCompleted,
+      phoneVerified: phoneVerified ?? this.phoneVerified,
+      status: status ?? this.status,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;

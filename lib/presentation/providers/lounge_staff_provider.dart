@@ -169,6 +169,51 @@ class LoungeStaffProvider extends ChangeNotifier {
     }
   }
 
+  /// Update my staff profile
+  Future<bool> updateProfile({
+    String? fullName,
+    String? nicNumber,
+    String? email,
+    String? notes,
+  }) async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      await remoteDataSource.updateProfile(
+        fullName: fullName,
+        nicNumber: nicNumber,
+        email: email,
+        notes: notes,
+      );
+
+      // Update selected staff with new data
+      if (_selectedStaff != null) {
+        _selectedStaff = _selectedStaff!.copyWith(
+          fullName: fullName ?? _selectedStaff!.fullName,
+          nicNumber: nicNumber ?? _selectedStaff!.nicNumber,
+          email: email ?? _selectedStaff!.email,
+          notes: notes ?? _selectedStaff!.notes,
+        );
+      }
+
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } on AppException catch (e) {
+      _error = e.message;
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _error = 'Failed to update profile: ${e.toString()}';
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
   /// Clear error
   void clearError() {
     _error = null;

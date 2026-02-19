@@ -270,4 +270,57 @@ class LoungeOwnerRemoteDataSource {
       throw ServerException(e.toString());
     }
   }
+
+  /// Update lounge owner profile
+  /// PUT /api/v1/lounge-owner/profile/update
+  Future<Map<String, dynamic>> updateProfile({
+    String? businessName,
+    String? businessLicense,
+    String? managerFullName,
+    String? managerNicNumber,
+    String? managerEmail,
+    String? district,
+  }) async {
+    try {
+      print('📤 Sending lounge owner profile update request...');
+      if (businessName != null) print('   Business Name: $businessName');
+      if (businessLicense != null)
+        print('   Business License: $businessLicense');
+      if (managerFullName != null) print('   Manager Name: $managerFullName');
+      if (managerNicNumber != null) print('   Manager NIC: $managerNicNumber');
+      if (managerEmail != null) print('   Manager Email: $managerEmail');
+      if (district != null) print('   District: $district');
+
+      final data = <String, dynamic>{};
+      if (businessName != null) data['business_name'] = businessName;
+      if (businessLicense != null) data['business_license'] = businessLicense;
+      if (managerFullName != null) data['manager_full_name'] = managerFullName;
+      if (managerNicNumber != null)
+        data['manager_nic_number'] = managerNicNumber;
+      if (managerEmail != null) data['manager_email'] = managerEmail;
+      if (district != null) data['district'] = district;
+
+      final response = await apiClient.put(
+        '/api/v1/lounge-owner/profile/update',
+        data: data,
+      );
+
+      if (response.statusCode != 200) {
+        throw ServerException('Failed to update lounge owner profile');
+      }
+
+      print('✅ Lounge owner profile updated successfully');
+      return response.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      print('❌ DioException in updateProfile:');
+      print('   Status Code: ${e.response?.statusCode}');
+      print('   Response Data: ${e.response?.data}');
+      final errorMessage =
+          e.response?.data?['message'] ?? e.message ?? 'Unknown error';
+      throw ServerException('Update profile failed: $errorMessage');
+    } catch (e) {
+      print('❌ Error: $e');
+      throw ServerException(e.toString());
+    }
+  }
 }

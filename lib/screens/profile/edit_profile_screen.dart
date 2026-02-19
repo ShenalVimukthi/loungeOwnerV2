@@ -48,35 +48,26 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     });
 
     try {
-      final loungeOwnerProvider = Provider.of<LoungeOwnerProvider>(
+      final authProvider = Provider.of<AuthProvider>(
         context,
         listen: false,
       );
 
-      final loungeOwner = loungeOwnerProvider.loungeOwner;
-
-      if (loungeOwner == null) {
-        throw Exception('Profile not loaded');
+      final currentUser = authProvider.user;
+      if (currentUser == null) {
+        throw Exception('User not loaded');
       }
 
-      // Update using the existing saveBusinessInfo method
-      final success = await loungeOwnerProvider.saveBusinessInfo(
-        businessName: loungeOwner.businessName ?? '',
-        businessLicense: loungeOwner.businessLicense ?? '',
-        managerFullName: _fullNameController.text.trim(),
-        managerNicNumber: loungeOwner.managerNicNumber ?? '',
-        managerEmail: loungeOwner.managerEmail ?? '',
-        district: '', // TODO: Add district to profile entity when backend returns it
+      // Update user profile with new name
+      final updatedUser = currentUser.copyWith(
+        firstName: _fullNameController.text.trim(),
       );
+
+      final success = await authProvider.updateUserProfile(updatedUser);
 
       if (!mounted) return;
 
       if (success) {
-        // Reload profile to get updated data
-        await loungeOwnerProvider.getLoungeOwnerProfile();
-
-        if (!mounted) return;
-
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Text('Profile updated successfully!'),
@@ -91,7 +82,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         Navigator.pop(context);
       } else {
         throw Exception(
-          loungeOwnerProvider.errorMessage ?? 'Failed to update profile',
+          authProvider.error ?? 'Failed to update profile',
         );
       }
     } catch (e) {

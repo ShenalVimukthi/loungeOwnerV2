@@ -37,6 +37,15 @@ abstract class LoungeStaffRemoteDataSource {
   /// Get my staff profile (Staff member view)
   /// GET /api/v1/lounge-staff/profile
   Future<LoungeStaffModel> getMyStaffProfile();
+
+  /// Update my staff profile
+  /// PUT /api/v1/lounge-staff/profile/update
+  Future<Map<String, dynamic>> updateProfile({
+    String? fullName,
+    String? nicNumber,
+    String? email,
+    String? notes,
+  });
 }
 
 class LoungeStaffRemoteDataSourceImpl implements LoungeStaffRemoteDataSource {
@@ -330,5 +339,51 @@ class LoungeStaffRemoteDataSourceImpl implements LoungeStaffRemoteDataSource {
       'Failed to parse staff data from response',
       'PARSE_ERROR',
     );
+  }
+
+  @override
+  Future<Map<String, dynamic>> updateProfile({
+    String? fullName,
+    String? nicNumber,
+    String? email,
+    String? notes,
+  }) async {
+    try {
+      print('📤 Sending lounge staff profile update request...');
+      if (fullName != null) print('   Full Name: $fullName');
+      if (nicNumber != null) print('   NIC Number: $nicNumber');
+      if (email != null) print('   Email: $email');
+      if (notes != null) print('   Notes: $notes');
+
+      final data = <String, dynamic>{};
+      if (fullName != null) data['full_name'] = fullName;
+      if (nicNumber != null) data['nic_number'] = nicNumber;
+      if (email != null) data['email'] = email;
+      if (notes != null) data['notes'] = notes;
+
+      final response = await _loungeDio.put(
+        '/api/v1/lounge-staff/profile/update',
+        data: data,
+      );
+
+      if (response.statusCode != 200) {
+        throw ServerException(
+          'Failed to update lounge staff profile',
+          'UPDATE_STAFF_PROFILE_FAILED',
+          response.statusCode,
+        );
+      }
+
+      print('✅ Lounge staff profile updated successfully');
+      return response.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      print('❌ DioException in updateProfile:');
+      print('   Status Code: ${e.response?.statusCode}');
+      print('   Response Data: ${e.response?.data}');
+      throw _handleDioError(e);
+    } catch (e) {
+      print('❌ Error: $e');
+      throw ServerException(e.toString(), 'UNKNOWN_ERROR');
+    }
   }
 }
