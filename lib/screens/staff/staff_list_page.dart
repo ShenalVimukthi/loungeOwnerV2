@@ -43,7 +43,7 @@ class _StaffListPageState extends State<StaffListPage> {
     }
   }
 
-  Future<void> _loadStaffList() async {
+  Future<void> _loadStaffList({bool showLoading = true}) async {
     final staffProvider = context.read<LoungeStaffProvider>();
 
     // Use the selected lounge ID
@@ -52,11 +52,15 @@ class _StaffListPageState extends State<StaffListPage> {
     }
 
     if (_selectedFilter == 'all') {
-      await staffProvider.getStaffByLounge(loungeId: _selectedLoungeId!);
+      await staffProvider.getStaffByLounge(
+        loungeId: _selectedLoungeId!,
+        showLoading: showLoading,
+      );
     } else {
       await staffProvider.getStaffByApprovalStatus(
         loungeId: _selectedLoungeId!,
         approvalStatus: _selectedFilter,
+        showLoading: showLoading,
       );
     }
   }
@@ -217,8 +221,10 @@ class _StaffListPageState extends State<StaffListPage> {
                 // Staff list content
                 if (_selectedFilter == 'pending') ...[
                   const SectionTitle(title: 'Pending Approval'),
-                  ...staffProvider.pendingStaff
-                      .map((staff) => StaffCard(staff: staff)),
+                  ...staffProvider.pendingStaff.map((staff) => StaffCard(
+                        staff: staff,
+                        onApprove: () => _decideStaffApproval(staff.id),
+                      )),
                 ],
                 if (_selectedFilter == 'approved') ...[
                   const SectionTitle(title: 'Approved Staff'),
@@ -228,8 +234,10 @@ class _StaffListPageState extends State<StaffListPage> {
                 if (_selectedFilter == 'all') ...[
                   if (staffProvider.pendingStaff.isNotEmpty) ...[
                     const SectionTitle(title: 'Pending Approval'),
-                    ...staffProvider.pendingStaff
-                        .map((staff) => StaffCard(staff: staff)),
+                    ...staffProvider.pendingStaff.map((staff) => StaffCard(
+                          staff: staff,
+                          onApprove: () => _decideStaffApproval(staff.id),
+                        )),
                     const SizedBox(height: 24),
                   ],
                   const SectionTitle(title: 'Active Staff'),
@@ -242,6 +250,61 @@ class _StaffListPageState extends State<StaffListPage> {
         },
       ),
     );
+  }
+
+  Future<void> _decideStaffApproval(String staffId) async {
+    if (_selectedLoungeId == null) return;
+
+    final selectedStatus = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Staff Application'),
+        content: const Text(
+          'Choose whether to approve or decline this staff member.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop('declined'),
+            child: const Text('Decline'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(dialogContext).pop('approved'),
+            child: const Text('Approve'),
+          ),
+        ],
+      ),
+    );
+
+    if (selectedStatus == null) return;
+
+    final staffProvider = context.read<LoungeStaffProvider>();
+    final success = await staffProvider.updateStaffApproval(
+      loungeId: _selectedLoungeId!,
+      staffId: staffId,
+      approvalStatus: selectedStatus,
+    );
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          success
+              ? (selectedStatus == 'approved'
+                  ? 'Staff approved successfully'
+                  : 'Staff declined successfully')
+              : (staffProvider.error ?? 'Failed to approve staff'),
+        ),
+      ),
+    );
+
+    if (success) {
+      _loadStaffList(showLoading: false);
+    }
   }
 }
 
@@ -270,78 +333,85 @@ class SectionTitle extends StatelessWidget {
 /// ---------------- STAFF CARD ----------------
 class StaffCard extends StatelessWidget {
   final dynamic staff; // LoungeStaff entity
+  final VoidCallback? onApprove;
 
   const StaffCard({
     super.key,
     required this.staff,
+    this.onApprove,
   });
 
   @override
   Widget build(BuildContext context) {
     final dateFormat = DateFormat('dd-MM-yyyy');
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: staff.isApproved ? AppColors.success : AppColors.primary,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.textPrimary.withOpacity(0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
+    return InkWell(
+      onTap: staff.isApproved ? null : onApprove,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: staff.isApproved ? AppColors.success : AppColors.primary,
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          /// Header
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 22,
-                backgroundColor: AppColors.primary.withOpacity(0.1),
-                child: const Icon(Icons.person, color: AppColors.primary),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  staff.fullName,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.textPrimary.withOpacity(0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            /// Header
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 22,
+                  backgroundColor: AppColors.primary.withOpacity(0.1),
+                  child: const Icon(Icons.person, color: AppColors.primary),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    staff.fullName,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
                   ),
                 ),
-              ),
-              StatusChip(isApproved: staff.isApproved),
-            ],
-          ),
-          const SizedBox(height: 12),
+                StatusChip(isApproved: staff.isApproved),
+              ],
+            ),
+            const SizedBox(height: 12),
 
-          InfoRow(label: 'Phone Number', value: staff.phone ?? 'N/A'),
-          InfoRow(label: 'NIC', value: staff.nicNumber),
-          if (staff.email != null) InfoRow(label: 'Email', value: staff.email!),
-          if (staff.hiredDate != null)
+            InfoRow(label: 'Phone Number', value: staff.phone ?? 'N/A'),
+            InfoRow(label: 'NIC', value: staff.nicNumber),
+            if (staff.email != null)
+              InfoRow(label: 'Email', value: staff.email!),
+            if (staff.hiredDate != null)
+              InfoRow(
+                  label: 'Hired Date',
+                  value: dateFormat.format(staff.hiredDate!)),
+            if (staff.terminatedDate != null)
+              InfoRow(
+                  label: 'Terminated Date',
+                  value: dateFormat.format(staff.terminatedDate!)),
             InfoRow(
-                label: 'Hired Date',
-                value: dateFormat.format(staff.hiredDate!)),
-          if (staff.terminatedDate != null)
-            InfoRow(
-                label: 'Terminated Date',
-                value: dateFormat.format(staff.terminatedDate!)),
-          InfoRow(
-            label: 'Employment Status',
-            value: staff.employmentStatus.toUpperCase(),
-          ),
-          if (staff.notes != null && staff.notes!.isNotEmpty)
-            InfoRow(label: 'Notes', value: staff.notes!),
-        ],
+              label: 'Employment Status',
+              value: staff.employmentStatus.toUpperCase(),
+            ),
+            if (staff.notes != null && staff.notes!.isNotEmpty)
+              InfoRow(label: 'Notes', value: staff.notes!),
+          ],
+        ),
       ),
     );
   }

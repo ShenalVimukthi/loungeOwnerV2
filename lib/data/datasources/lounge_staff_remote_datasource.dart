@@ -34,6 +34,14 @@ abstract class LoungeStaffRemoteDataSource {
     required String approvalStatus,
   });
 
+  /// Approve or decline staff application (Lounge Owner only)
+  /// PUT /api/v1/lounges/:lounge_id/staff/:staff_id/approval
+  Future<Map<String, dynamic>> updateStaffApproval({
+    required String loungeId,
+    required String staffId,
+    required String approvalStatus,
+  });
+
   /// Get my staff profile (Staff member view)
   /// GET /api/v1/lounge-staff/profile
   Future<LoungeStaffModel> getMyStaffProfile();
@@ -238,6 +246,33 @@ class LoungeStaffRemoteDataSourceImpl implements LoungeStaffRemoteDataSource {
         'Failed to parse staff data from response',
         'PARSE_ERROR',
       );
+    }
+  }
+
+  @override
+  Future<Map<String, dynamic>> updateStaffApproval({
+    required String loungeId,
+    required String staffId,
+    required String approvalStatus,
+  }) async {
+    try {
+      final response = await _loungeDio.put(
+        '/api/v1/lounges/$loungeId/staff/$staffId/approval',
+        data: {
+          'approval_status': approvalStatus,
+          'approvement_status': approvalStatus,
+        },
+      );
+
+      if (response.data is Map<String, dynamic>) {
+        return response.data as Map<String, dynamic>;
+      }
+
+      return {
+        'message': 'Staff approval status updated successfully',
+      };
+    } on DioException catch (e) {
+      throw _handleDioError(e);
     }
   }
 

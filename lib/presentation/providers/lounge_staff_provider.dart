@@ -24,14 +24,13 @@ class LoungeStaffProvider extends ChangeNotifier {
 
   // Filter getters
   bool _isApprovalActive(LoungeStaff staff) {
-    return staff.approvalStatus == 'active' ||
-        staff.approvalStatus == 'approved';
+    return staff.approvalStatus == 'approved';
   }
 
   List<LoungeStaff> get approvedStaff =>
       _staffList.where((s) => _isApprovalActive(s)).toList();
   List<LoungeStaff> get pendingStaff =>
-      _staffList.where((s) => !_isApprovalActive(s) || !s.isActive).toList();
+      _staffList.where((s) => s.approvalStatus == 'pending').toList();
   List<LoungeStaff> get activeStaff =>
       _staffList.where((s) => _isApprovalActive(s) && s.isActive).toList();
 
@@ -83,10 +82,13 @@ class LoungeStaffProvider extends ChangeNotifier {
     required String loungeId,
     String? approvalStatus,
     String? employmentStatus,
+    bool showLoading = true,
   }) async {
-    _isLoading = true;
-    _error = null;
-    notifyListeners();
+    if (showLoading) {
+      _isLoading = true;
+      _error = null;
+      notifyListeners();
+    }
 
     try {
       final staffModels = await remoteDataSource.getStaffByLounge(
@@ -96,18 +98,24 @@ class LoungeStaffProvider extends ChangeNotifier {
       );
 
       _staffList = staffModels;
-      _isLoading = false;
+      if (showLoading) {
+        _isLoading = false;
+      }
       notifyListeners();
       return true;
     } on AppException catch (e) {
-      _error = e.message;
-      _isLoading = false;
-      notifyListeners();
+      if (showLoading) {
+        _error = e.message;
+        _isLoading = false;
+        notifyListeners();
+      }
       return false;
     } catch (e) {
-      _error = 'An unexpected error occurred';
-      _isLoading = false;
-      notifyListeners();
+      if (showLoading) {
+        _error = 'An unexpected error occurred';
+        _isLoading = false;
+        notifyListeners();
+      }
       return false;
     }
   }
@@ -116,10 +124,13 @@ class LoungeStaffProvider extends ChangeNotifier {
   Future<bool> getStaffByApprovalStatus({
     required String loungeId,
     required String approvalStatus,
+    bool showLoading = true,
   }) async {
-    _isLoading = true;
-    _error = null;
-    notifyListeners();
+    if (showLoading) {
+      _isLoading = true;
+      _error = null;
+      notifyListeners();
+    }
 
     try {
       final staffModels = await remoteDataSource.getStaffByApprovalStatus(
@@ -128,19 +139,67 @@ class LoungeStaffProvider extends ChangeNotifier {
       );
 
       _staffList = staffModels;
-      _isLoading = false;
+      if (showLoading) {
+        _isLoading = false;
+      }
       notifyListeners();
       return true;
     } on AppException catch (e) {
+      if (showLoading) {
+        _error = e.message;
+        _isLoading = false;
+        notifyListeners();
+      }
+      return false;
+    } catch (e) {
+      if (showLoading) {
+        _error = 'An unexpected error occurred';
+        _isLoading = false;
+        notifyListeners();
+      }
+      return false;
+    }
+  }
+
+  /// Approve or decline a staff member (Owner only)
+  Future<bool> updateStaffApproval({
+    required String loungeId,
+    required String staffId,
+    required String approvalStatus,
+  }) async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      await remoteDataSource.updateStaffApproval(
+        loungeId: loungeId,
+        staffId: staffId,
+        approvalStatus: approvalStatus,
+      );
+
+      _staffList = _staffList.map((staff) {
+        if (staff.id == staffId) {
+          return staff.copyWith(
+            approvalStatus: approvalStatus,
+            employmentStatus:
+                approvalStatus == 'approved' ? 'active' : 'inactive',
+            hiredDate: approvalStatus == 'approved' ? DateTime.now() : null,
+            updatedAt: DateTime.now(),
+          );
+        }
+        return staff;
+      }).toList();
+      return true;
+    } on AppException catch (e) {
       _error = e.message;
-      _isLoading = false;
-      notifyListeners();
       return false;
     } catch (e) {
       _error = 'An unexpected error occurred';
+      return false;
+    } finally {
       _isLoading = false;
       notifyListeners();
-      return false;
     }
   }
 
