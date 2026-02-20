@@ -144,4 +144,4 @@ IMPLEMENTATION_SUMMARY.md
 FLUTTERlogs.txt
 
 # APK files
-apk v2.apk
+*.apk
