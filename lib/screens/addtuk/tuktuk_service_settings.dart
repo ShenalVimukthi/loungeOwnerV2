@@ -105,6 +105,7 @@ class _TukTukServiceSettingsPageState extends State<TukTukServiceSettingsPage> {
     final TextEditingController locCtrl = TextEditingController();
     final TextEditingController latCtrl = TextEditingController();
     final TextEditingController lonCtrl = TextEditingController();
+    final TextEditingController estDurationCtrl = TextEditingController();
     bool isLoadingLocation = false;
     String? selectedLoungeId = _selectedLoungeId;
 
@@ -161,6 +162,24 @@ class _TukTukServiceSettingsPageState extends State<TukTukServiceSettingsPage> {
                     hintText: 'e.g., Negombo railway station',
                     prefixIcon:
                         const Icon(Icons.location_on, color: AppColors.primary),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide:
+                          const BorderSide(color: AppColors.primary, width: 2),
+                    ),
+                  ),
+                ),
+
+                TextField(
+                  controller: estDurationCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    labelText: 'Estimated Duration (minutes) *',
+                    hintText: 'e.g., 15',
+                    prefixIcon:
+                        const Icon(Icons.schedule, color: AppColors.primary),
                     border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12)),
                     focusedBorder: OutlineInputBorder(
@@ -359,6 +378,30 @@ class _TukTukServiceSettingsPageState extends State<TukTukServiceSettingsPage> {
                   return;
                 }
 
+                int? estDuration;
+                try {
+                  estDuration = int.parse(estDurationCtrl.text);
+                  if (estDuration <= 0) {
+                    ScaffoldMessenger.of(ctx).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                            'Estimated duration must be a positive integer'),
+                        backgroundColor: AppColors.error,
+                      ),
+                    );
+                    return;
+                  }
+                } catch (e) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                          'Please enter a valid estimated duration in minutes'),
+                      backgroundColor: AppColors.error,
+                    ),
+                  );
+                  return;
+                }
+
                 double? latitude, longitude;
                 try {
                   latitude = double.parse(latCtrl.text);
@@ -406,6 +449,7 @@ class _TukTukServiceSettingsPageState extends State<TukTukServiceSettingsPage> {
                     locationName: locCtrl.text.trim(),
                     latitude: latitude,
                     longitude: longitude,
+                    estDuration: estDuration,
                   );
 
                   if (success) {

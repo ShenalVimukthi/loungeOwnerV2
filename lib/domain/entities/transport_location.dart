@@ -4,6 +4,7 @@ class TransportLocation {
   final String locationName;
   final double latitude;
   final double longitude;
+  final int? estDuration;
   final bool isActive;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -15,6 +16,7 @@ class TransportLocation {
     required this.locationName,
     required this.latitude,
     required this.longitude,
+    this.estDuration,
     required this.isActive,
     required this.createdAt,
     required this.updatedAt,

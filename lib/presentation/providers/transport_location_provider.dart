@@ -46,6 +46,7 @@ class TransportLocationProvider extends ChangeNotifier {
     required String locationName,
     required double latitude,
     required double longitude,
+    required int estDuration,
   }) async {
     _isLoading = true;
     _error = null;
@@ -57,6 +58,7 @@ class TransportLocationProvider extends ChangeNotifier {
         locationName: locationName,
         latitude: latitude,
         longitude: longitude,
+        estDuration: estDuration,
       );
 
       _locations.add(newLocation);
@@ -80,7 +82,11 @@ class TransportLocationProvider extends ChangeNotifier {
   Future<bool> updateTransportLocation({
     required String loungeId,
     required String locationId,
-    required String locationName,
+    String? locationName,
+    double? latitude,
+    double? longitude,
+    int? estDuration,
+    bool? isActive,
   }) async {
     _isLoading = true;
     _error = null;
@@ -91,6 +97,10 @@ class TransportLocationProvider extends ChangeNotifier {
         loungeId: loungeId,
         locationId: locationId,
         locationName: locationName,
+        latitude: latitude,
+        longitude: longitude,
+        estDuration: estDuration,
+        isActive: isActive,
       );
 
       final index = _locations.indexWhere((loc) => loc.id == locationId);
@@ -194,6 +204,7 @@ class TransportLocationProvider extends ChangeNotifier {
           locationName: _locations[index].locationName,
           latitude: _locations[index].latitude,
           longitude: _locations[index].longitude,
+          estDuration: _locations[index].estDuration,
           isActive: _locations[index].isActive,
           createdAt: _locations[index].createdAt,
           updatedAt: DateTime.now(),
@@ -242,6 +253,7 @@ class TransportLocationProvider extends ChangeNotifier {
           locationName: location.locationName,
           latitude: location.latitude,
           longitude: location.longitude,
+          estDuration: location.estDuration,
           isActive: location.isActive,
           createdAt: location.createdAt,
           updatedAt: location.updatedAt,

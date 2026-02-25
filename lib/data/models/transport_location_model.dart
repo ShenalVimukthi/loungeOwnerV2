@@ -6,6 +6,7 @@ class TransportLocationModel {
   final String locationName;
   final double latitude;
   final double longitude;
+  final int? estDuration;
   final bool isActive;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -17,6 +18,7 @@ class TransportLocationModel {
     required this.locationName,
     required this.latitude,
     required this.longitude,
+    this.estDuration,
     required this.isActive,
     required this.createdAt,
     required this.updatedAt,
@@ -48,6 +50,8 @@ class TransportLocationModel {
           json['location'] as String? ?? json['location_name'] as String? ?? '',
       latitude: (json['latitude'] as num?)?.toDouble() ?? 0.0,
       longitude: (json['longitude'] as num?)?.toDouble() ?? 0.0,
+      estDuration: (json['est_duration'] as num?)?.toInt() ??
+          (json['estDuration'] as num?)?.toInt(),
       isActive: isActive,
       createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'] as String)
@@ -66,6 +70,7 @@ class TransportLocationModel {
       'location': locationName,
       'latitude': latitude,
       'longitude': longitude,
+      if (estDuration != null) 'est_duration': estDuration,
       'is_active': isActive,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
@@ -80,6 +85,7 @@ class TransportLocationModel {
       locationName: locationName,
       latitude: latitude,
       longitude: longitude,
+      estDuration: estDuration,
       isActive: isActive,
       createdAt: createdAt,
       updatedAt: updatedAt,
@@ -94,6 +100,7 @@ class TransportLocationModel {
       locationName: entity.locationName,
       latitude: entity.latitude,
       longitude: entity.longitude,
+      estDuration: entity.estDuration,
       isActive: entity.isActive,
       createdAt: entity.createdAt,
       updatedAt: entity.updatedAt,

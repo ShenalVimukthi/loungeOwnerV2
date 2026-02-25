@@ -14,13 +14,18 @@ abstract class TransportLocationRemoteDataSource {
     required String locationName,
     required double latitude,
     required double longitude,
+    required int estDuration,
   });
 
   /// PUT /api/v1/lounges/:id/transport-locations/:location_id
   Future<TransportLocationModel> updateTransportLocation({
     required String loungeId,
     required String locationId,
-    required String locationName,
+    String? locationName,
+    double? latitude,
+    double? longitude,
+    int? estDuration,
+    bool? isActive,
   });
 
   /// DELETE /api/v1/lounges/:id/transport-locations/:location_id
@@ -132,11 +137,13 @@ class TransportLocationRemoteDataSourceImpl
     required String locationName,
     required double latitude,
     required double longitude,
+    required int estDuration,
   }) async {
     try {
       print('📤 [API] Adding transport location: $locationName');
       print('📤 [API] Lounge ID: $loungeId');
       print('📤 [API] Coordinates: ($latitude, $longitude)');
+      print('📤 [API] Estimated duration: $estDuration min');
 
       final response = await _dio.post(
         '/api/v1/lounges/transport-locations',
@@ -145,6 +152,7 @@ class TransportLocationRemoteDataSourceImpl
           'location': locationName,
           'latitude': latitude,
           'longitude': longitude,
+          'est_duration': estDuration,
         },
       );
 
@@ -160,17 +168,7 @@ class TransportLocationRemoteDataSourceImpl
       }
 
       try {
-        final locationData =
-            (response.data as Map<String, dynamic>).cast<String, dynamic>();
-
-        if (locationData.isEmpty) {
-          print('⚠️ Response data is empty map');
-          throw const ServerException(
-            'Empty response data from server',
-            'EMPTY_RESPONSE_DATA',
-            null,
-          );
-        }
+        final locationData = _extractTransportLocationData(response.data);
 
         return TransportLocationModel.fromJson(locationData);
       } catch (parseError) {
@@ -195,16 +193,43 @@ class TransportLocationRemoteDataSourceImpl
   Future<TransportLocationModel> updateTransportLocation({
     required String loungeId,
     required String locationId,
-    required String locationName,
+    String? locationName,
+    double? latitude,
+    double? longitude,
+    int? estDuration,
+    bool? isActive,
   }) async {
     try {
       print('📤 [API] Updating transport location: $locationId');
 
+      final requestData = <String, dynamic>{};
+      if (locationName != null && locationName.trim().isNotEmpty) {
+        requestData['location'] = locationName.trim();
+      }
+      if (latitude != null) {
+        requestData['latitude'] = latitude;
+      }
+      if (longitude != null) {
+        requestData['longitude'] = longitude;
+      }
+      if (estDuration != null) {
+        requestData['est_duration'] = estDuration;
+      }
+      if (isActive != null) {
+        requestData['status'] = isActive ? 'active' : 'inactive';
+      }
+
+      if (requestData.isEmpty) {
+        throw const ServerException(
+          'At least one field must be provided for update',
+          'EMPTY_UPDATE_PAYLOAD',
+          400,
+        );
+      }
+
       final response = await _dio.put(
         '/api/v1/lounges/$loungeId/transport-locations/$locationId',
-        data: {
-          'location_name': locationName,
-        },
+        data: requestData,
       );
 
       print('📥 Response status: ${response.statusCode}');
@@ -217,14 +242,38 @@ class TransportLocationRemoteDataSourceImpl
         );
       }
 
-      final locationData =
-          response.data['location'] ?? response.data['data'] ?? response.data;
-      return TransportLocationModel.fromJson(
-          locationData as Map<String, dynamic>);
+      final locationData = _extractTransportLocationData(response.data);
+      return TransportLocationModel.fromJson(locationData);
     } on DioException catch (e) {
       print('❌ DioException: ${e.message}');
       throw _handleDioError(e);
     }
+  }
+
+  Map<String, dynamic> _extractTransportLocationData(dynamic rawData) {
+    if (rawData is Map<String, dynamic>) {
+      final direct = rawData;
+
+      final nestedLocation = direct['location'];
+      if (nestedLocation is Map<String, dynamic>) {
+        return nestedLocation;
+      }
+
+      final nestedData = direct['data'];
+      if (nestedData is Map<String, dynamic>) {
+        return nestedData;
+      }
+
+      if (direct.containsKey('id') && direct.containsKey('lounge_id')) {
+        return direct;
+      }
+    }
+
+    throw const ServerException(
+      'Invalid transport location response format',
+      'INVALID_RESPONSE_FORMAT',
+      null,
+    );
   }
 
   @override
