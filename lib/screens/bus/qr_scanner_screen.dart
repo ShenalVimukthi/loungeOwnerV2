@@ -390,23 +390,73 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
-        child: MobileScanner(
-          key: ValueKey(_scannerSession),
-          controller: _cameraController,
-          fit: BoxFit.cover,
-          onDetect: _onDetect,
-          errorBuilder: (context, error, child) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text(
-                  'Camera unavailable: ${error.errorDetails?.message ?? 'Please allow camera access.'}',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: AppColors.textSecondary),
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: MobileScanner(
+                key: ValueKey(_scannerSession),
+                controller: _cameraController,
+                fit: BoxFit.cover,
+                onDetect: _onDetect,
+                errorBuilder: (context, error, child) {
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Text(
+                        'Camera unavailable: ${error.errorDetails?.message ?? 'Please allow camera access.'}',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: AppColors.textSecondary),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            // Torch/Flashlight overlay button (Google Lens style)
+            Positioned(
+              bottom: 24,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: ValueListenableBuilder<MobileScannerState>(
+                  valueListenable: _cameraController,
+                  builder: (context, state, child) {
+                    final isOn = state.torchState == TorchState.on;
+                    return Material(
+                      type: MaterialType.transparency,
+                      child: InkWell(
+                        onTap: () => _cameraController.toggleTorch(),
+                        borderRadius: BorderRadius.circular(30),
+                        child: Ink(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.55),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: isOn ? AppColors.primary : Colors.white24,
+                              width: 1.5,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.2),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Icon(
+                            isOn ? Icons.flash_on : Icons.flash_off,
+                            color: isOn ? Colors.yellow.shade600 : Colors.white,
+                            size: 26,
+                          ),
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ),
-            );
-          },
+            ),
+          ],
         ),
       ),
     );
