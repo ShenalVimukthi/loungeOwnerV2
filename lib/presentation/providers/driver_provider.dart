@@ -140,6 +140,52 @@ class DriverProvider extends ChangeNotifier {
     }
   }
 
+  /// Update a driver in lounge (Owner only)
+  Future<bool> updateDriver({
+    required String loungeId,
+    required String driverId,
+    String? fullName,
+    String? nicNumber,
+    String? contactNumber,
+    String? vehicleNumber,
+    String? vehicleType,
+  }) async {
+    // NOTE: Do NOT set _isLoading here. The edit bottom sheet manages its own
+    // loading state (_isSaving). Setting _isLoading would trigger the Consumer
+    // in DriverListPage to rebuild the body as a CircularProgressIndicator,
+    // which dismisses the bottom sheet before the API call completes.
+    _error = null;
+
+    try {
+      final updatedDriver = await remoteDataSource.updateDriver(
+        loungeId: loungeId,
+        driverId: driverId,
+        fullName: fullName,
+        nicNumber: nicNumber,
+        contactNumber: contactNumber,
+        vehicleNumber: vehicleNumber,
+        vehicleType: vehicleType,
+      );
+
+      // Replace the old driver in the local list with the updated one
+      final index = _driverList.indexWhere((d) => d.id == driverId);
+      if (index != -1) {
+        _driverList[index] = updatedDriver;
+      }
+
+      notifyListeners();
+      return true;
+    } on AppException catch (e) {
+      _error = e.message;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _error = 'An unexpected error occurred';
+      notifyListeners();
+      return false;
+    }
+  }
+
   /// Assign driver to booking
   Future<bool> assignDriverToBooking({
     required String bookingId,

@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import '../../config/theme_config.dart';
 import '../../presentation/providers/transport_location_provider.dart';
 import '../../presentation/providers/registration_provider.dart';
+import '../../presentation/widgets/location_picker_widget.dart';
+import '../../data/models/transport_location_model.dart';
 
 /// Screen to display all saved transport locations
 class LocationListScreen extends StatefulWidget {
@@ -107,74 +112,596 @@ class _LocationListScreenState extends State<LocationListScreen> {
     }
   }
 
-  Future<void> _editLocation(String locationId, String currentName) async {
+  static const String _googleMapsApiKey =
+      'AIzaSyAuA_RMUaOuqKOasnd5GU8MdYvrDmToXPg';
+
+  Future<void> _editLocation(TransportLocationModel location) async {
     if (_selectedLoungeId == null) return;
 
-    final nameController = TextEditingController(text: currentName);
+    final locCtrl = TextEditingController(text: location.locationName);
+    final latCtrl = TextEditingController(text: location.latitude.toString());
+    final lonCtrl = TextEditingController(text: location.longitude.toString());
+    final estDurationCtrl =
+        TextEditingController(text: location.estDuration?.toString() ?? '');
+    final distanceCtrl =
+        TextEditingController(text: location.distance?.toString() ?? '');
+    final threeWheelerPriceCtrl = TextEditingController(
+        text: location.prices?['Three Wheeler']?.toString() ?? '');
+    final carPriceCtrl =
+        TextEditingController(text: location.prices?['Car']?.toString() ?? '');
+    final vanPriceCtrl =
+        TextEditingController(text: location.prices?['Van']?.toString() ?? '');
+
+    final registrationProvider = context.read<RegistrationProvider>();
+    final verifiedLounges = registrationProvider.verifiedLounges;
+
+    Future<void> autoFillDistanceAndDuration({
+      required double destinationLatitude,
+      required double destinationLongitude,
+      required void Function(void Function()) dialogSetState,
+    }) async {
+      if (_selectedLoungeId == null || _selectedLoungeId!.isEmpty) {
+        return;
+      }
+
+      final selectedLounges = verifiedLounges
+          .where((lounge) => lounge.id == _selectedLoungeId)
+          .toList();
+      if (selectedLounges.isEmpty) {
+        return;
+      }
+
+      final lounge = selectedLounges.first;
+      final loungeLatitude = double.tryParse((lounge.latitude ?? '').trim());
+      final loungeLongitude = double.tryParse((lounge.longitude ?? '').trim());
+
+      if (loungeLatitude == null || loungeLongitude == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Selected lounge has no valid coordinates'),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
+        return;
+      }
+
+      final uri = Uri.parse(
+        'https://maps.googleapis.com/maps/api/distancematrix/json'
+        '?origins=$loungeLatitude,$loungeLongitude'
+        '&destinations=$destinationLatitude,$destinationLongitude'
+        '&mode=driving'
+        '&key=$_googleMapsApiKey',
+      );
+
+      try {
+        final response = await http.get(uri);
+        if (response.statusCode != 200) {
+          throw Exception('Failed to fetch route information');
+        }
+
+        final data = json.decode(response.body) as Map<String, dynamic>;
+        final status = data['status']?.toString();
+        if (status != 'OK') {
+          throw Exception('Google API error: $status');
+        }
+
+        final rows = data['rows'] as List<dynamic>?;
+        final elements = rows?.firstOrNull?['elements'] as List<dynamic>?;
+        final element = elements?.firstOrNull as Map<String, dynamic>?;
+        final elementStatus = element?['status']?.toString();
+
+        if (element == null || elementStatus != 'OK') {
+          throw Exception('No route data available');
+        }
+
+        final distanceMeters =
+            (element['distance']?['value'] as num?)?.toDouble();
+        final durationSeconds =
+            (element['duration']?['value'] as num?)?.toDouble();
+
+        if (distanceMeters == null || durationSeconds == null) {
+          throw Exception('Invalid route data received');
+        }
+
+        final distanceKm = distanceMeters / 1000;
+        final estimatedMinutes = (durationSeconds / 60).ceil();
+
+        dialogSetState(() {
+          distanceCtrl.text = distanceKm.toStringAsFixed(2);
+          estDurationCtrl.text =
+              estimatedMinutes < 1 ? '1' : estimatedMinutes.toString();
+        });
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to calculate route: $e'),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
+      }
+    }
 
     final result = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text(
-          'Edit Location',
-          style: TextStyle(fontWeight: FontWeight.w600),
-        ),
-        content: TextField(
-          controller: nameController,
-          decoration: const InputDecoration(
-            labelText: 'Location Name',
-            border: OutlineInputBorder(),
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text(
+            'Edit Location',
+            style: TextStyle(fontWeight: FontWeight.w600),
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text(
-              'Cancel',
-              style: TextStyle(color: AppColors.textSecondary),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              spacing: 16,
+              children: [
+                // Location Name Field
+                TextField(
+                  controller: locCtrl,
+                  textCapitalization: TextCapitalization.words,
+                  decoration: InputDecoration(
+                    labelText: 'Location Name *',
+                    hintText: 'e.g., Negombo railway station',
+                    prefixIcon:
+                        const Icon(Icons.location_on, color: AppColors.primary),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide:
+                          const BorderSide(color: AppColors.primary, width: 2),
+                    ),
+                  ),
+                ),
+
+                TextField(
+                  controller: estDurationCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    labelText: 'Estimated Duration (minutes) *',
+                    hintText: 'e.g., 15',
+                    prefixIcon:
+                        const Icon(Icons.schedule, color: AppColors.primary),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide:
+                          const BorderSide(color: AppColors.primary, width: 2),
+                    ),
+                  ),
+                ),
+
+                TextField(
+                  controller: distanceCtrl,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: InputDecoration(
+                    labelText: 'Distance from Lounge (km) *',
+                    hintText: 'e.g., 3.5',
+                    prefixIcon:
+                        const Icon(Icons.route, color: AppColors.primary),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide:
+                          const BorderSide(color: AppColors.primary, width: 2),
+                    ),
+                  ),
+                ),
+
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.background,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    spacing: 12,
+                    children: [
+                      const Text(
+                        'Prices (LKR) *',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      TextField(
+                        controller: threeWheelerPriceCtrl,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        decoration: InputDecoration(
+                          labelText: 'Three Wheeler Price *',
+                          hintText: 'Minimum 50',
+                          prefixIcon: const Icon(
+                            Icons.electric_rickshaw,
+                            color: AppColors.primary,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ),
+                      TextField(
+                        controller: carPriceCtrl,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        decoration: InputDecoration(
+                          labelText: 'Car Price *',
+                          hintText: 'Minimum 50',
+                          prefixIcon: const Icon(
+                            Icons.directions_car,
+                            color: AppColors.primary,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ),
+                      TextField(
+                        controller: vanPriceCtrl,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        decoration: InputDecoration(
+                          labelText: 'Van Price *',
+                          hintText: 'Minimum 50',
+                          prefixIcon: const Icon(
+                            Icons.airport_shuttle,
+                            color: AppColors.primary,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Coordinates Section
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.background,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    spacing: 12,
+                    children: [
+                      const Text(
+                        'Coordinates',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      ElevatedButton.icon(
+                        onPressed: () async {
+                          LatLng? initialLocation;
+                          final existingLat = double.tryParse(latCtrl.text);
+                          final existingLon = double.tryParse(lonCtrl.text);
+                          if (existingLat != null && existingLon != null) {
+                            initialLocation = LatLng(existingLat, existingLon);
+                          } else {
+                            initialLocation = LatLng(location.latitude, location.longitude);
+                          }
+
+                          await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => LocationPickerWidget(
+                                initialLocation: initialLocation,
+                                onLocationSelected: (loc, _) async {
+                                  setState(() {
+                                    latCtrl.text =
+                                        loc.latitude.toStringAsFixed(6);
+                                    lonCtrl.text =
+                                        loc.longitude.toStringAsFixed(6);
+                                  });
+
+                                  await autoFillDistanceAndDuration(
+                                    destinationLatitude: loc.latitude,
+                                    destinationLongitude: loc.longitude,
+                                    dialogSetState: setState,
+                                  );
+                                },
+                              ),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.map),
+                        label: const Text('Select on Map'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary.withOpacity(0.1),
+                          foregroundColor: AppColors.primary,
+                          minimumSize: const Size(double.infinity, 44),
+                        ),
+                      ),
+                      // Latitude Field
+                      TextField(
+                        controller: latCtrl,
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true, signed: true),
+                        decoration: InputDecoration(
+                          labelText: 'Latitude (-90 to 90) *',
+                          hintText: 'e.g., 7.21',
+                          prefixIcon: const Icon(Icons.location_on_outlined,
+                              color: AppColors.primary),
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8)),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: const BorderSide(
+                                color: AppColors.primary, width: 2),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 12),
+                        ),
+                      ),
+                      // Longitude Field
+                      TextField(
+                        controller: lonCtrl,
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true, signed: true),
+                        decoration: InputDecoration(
+                          labelText: 'Longitude (-180 to 180) *',
+                          hintText: 'e.g., 79.84',
+                          prefixIcon: const Icon(Icons.location_on_outlined,
+                              color: AppColors.primary),
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8)),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: const BorderSide(
+                                color: AppColors.primary, width: 2),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 12),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Required Fields Note
+                const Text(
+                  '* Required fields',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ],
             ),
           ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(color: AppColors.textSecondary),
+              ),
             ),
-            child: const Text('Save'),
-          ),
-        ],
+            ElevatedButton(
+              onPressed: () async {
+                // Validate inputs
+                if (locCtrl.text.isEmpty) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    const SnackBar(
+                      content: Text('Please enter a location name'),
+                      backgroundColor: AppColors.error,
+                    ),
+                  );
+                  return;
+                }
+
+                int? estDuration;
+                try {
+                  estDuration = int.parse(estDurationCtrl.text);
+                  if (estDuration <= 0) {
+                    ScaffoldMessenger.of(ctx).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                            'Estimated duration must be a positive integer'),
+                        backgroundColor: AppColors.error,
+                      ),
+                    );
+                    return;
+                  }
+                } catch (e) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                          'Please enter a valid estimated duration in minutes'),
+                      backgroundColor: AppColors.error,
+                    ),
+                  );
+                  return;
+                }
+
+                double? distance;
+                try {
+                  distance = double.parse(distanceCtrl.text);
+                  if (distance < 0) {
+                    ScaffoldMessenger.of(ctx).showSnackBar(
+                      const SnackBar(
+                        content:
+                            Text('Distance must be zero or a positive number'),
+                        backgroundColor: AppColors.error,
+                      ),
+                    );
+                    return;
+                  }
+                } catch (e) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    const SnackBar(
+                      content: Text('Please enter a valid distance in km'),
+                      backgroundColor: AppColors.error,
+                    ),
+                  );
+                  return;
+                }
+
+                double? latitude, longitude;
+                try {
+                  latitude = double.parse(latCtrl.text);
+                  longitude = double.parse(lonCtrl.text);
+
+                  // Validate ranges
+                  if (latitude < -90 || latitude > 90) {
+                    ScaffoldMessenger.of(ctx).showSnackBar(
+                      const SnackBar(
+                        content: Text('Latitude must be between -90 and 90'),
+                        backgroundColor: AppColors.error,
+                      ),
+                    );
+                    return;
+                  }
+
+                  if (longitude < -180 || longitude > 180) {
+                    ScaffoldMessenger.of(ctx).showSnackBar(
+                      const SnackBar(
+                        content: Text('Longitude must be between -180 and 180'),
+                        backgroundColor: AppColors.error,
+                      ),
+                    );
+                    return;
+                  }
+                } catch (e) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    const SnackBar(
+                      content: Text('Please enter valid coordinates'),
+                      backgroundColor: AppColors.error,
+                    ),
+                  );
+                  return;
+                }
+
+                double? threeWheelerPrice;
+                double? carPrice;
+                double? vanPrice;
+                try {
+                  threeWheelerPrice = double.parse(threeWheelerPriceCtrl.text);
+                  carPrice = double.parse(carPriceCtrl.text);
+                  vanPrice = double.parse(vanPriceCtrl.text);
+
+                  if (threeWheelerPrice < 50 ||
+                      carPrice < 50 ||
+                      vanPrice < 50) {
+                    ScaffoldMessenger.of(ctx).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                            'Each price must be at least 50 LKR'),
+                        backgroundColor: AppColors.error,
+                      ),
+                    );
+                    return;
+                  }
+                } catch (e) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    const SnackBar(
+                      content:
+                          Text('Please enter valid prices for all vehicles'),
+                      backgroundColor: AppColors.error,
+                    ),
+                  );
+                  return;
+                }
+
+                Navigator.pop(ctx, true);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Save'),
+            ),
+          ],
+        ),
       ),
     );
 
-    if (result == true && nameController.text.isNotEmpty) {
+    if (result == true) {
       final provider = context.read<TransportLocationProvider>();
+      
+      final nameVal = locCtrl.text.trim();
+      final latVal = double.parse(latCtrl.text);
+      final lonVal = double.parse(lonCtrl.text);
+      final estDurationVal = int.parse(estDurationCtrl.text);
+      final distanceVal = double.parse(distanceCtrl.text);
+      
+      final threeWheelerPrice = double.parse(threeWheelerPriceCtrl.text);
+      final carPrice = double.parse(carPriceCtrl.text);
+      final vanPrice = double.parse(vanPriceCtrl.text);
+
       final success = await provider.updateTransportLocation(
         loungeId: _selectedLoungeId!,
-        locationId: locationId,
-        locationName: nameController.text.trim(),
+        locationId: location.id,
+        locationName: nameVal,
+        latitude: latVal,
+        longitude: lonVal,
+        estDuration: estDurationVal,
+        distance: distanceVal,
       );
+
+      bool pricesSaved = false;
+      if (success) {
+        pricesSaved = await provider.setLocationPrices(
+          loungeId: _selectedLoungeId!,
+          locationId: location.id,
+          prices: {
+            'Three Wheeler': threeWheelerPrice,
+            'Car': carPrice,
+            'Van': vanPrice,
+          },
+        );
+      }
 
       if (!mounted) return;
 
-      if (success) {
+      if (success && pricesSaved) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Location updated successfully'),
+            content: Text('Location and prices updated successfully'),
             backgroundColor: AppColors.success,
           ),
         );
+        await _loadLocations();
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(provider.error ?? 'Failed to update location'),
+            content: Text(provider.error ?? 'Failed to update location details'),
             backgroundColor: AppColors.error,
           ),
         );
       }
     }
 
-    nameController.dispose();
+    locCtrl.dispose();
+    latCtrl.dispose();
+    lonCtrl.dispose();
+    estDurationCtrl.dispose();
+    distanceCtrl.dispose();
+    threeWheelerPriceCtrl.dispose();
+    carPriceCtrl.dispose();
+    vanPriceCtrl.dispose();
   }
 
   @override
@@ -314,10 +841,7 @@ class _LocationListScreenState extends State<LocationListScreen> {
                                     Icons.edit_outlined,
                                     color: AppColors.primary,
                                   ),
-                                  onPressed: () => _editLocation(
-                                    location.id,
-                                    location.locationName,
-                                  ),
+                                  onPressed: () => _editLocation(location),
                                   tooltip: 'Edit',
                                 ),
                                 IconButton(

@@ -23,6 +23,18 @@ abstract class DriverRemoteDataSource {
   /// GET /api/v1/lounges/:lounge_id/drivers
   Future<List<DriverModel>> getDriversByLounge({required String loungeId});
 
+  /// Update a driver in lounge (Lounge Owner only)
+  /// PUT /api/v1/lounges/:lounge_id/drivers/:driver_id
+  Future<DriverModel> updateDriver({
+    required String loungeId,
+    required String driverId,
+    String? fullName,
+    String? nicNumber,
+    String? contactNumber,
+    String? vehicleNumber,
+    String? vehicleType,
+  });
+
   /// Remove a driver from lounge (Lounge Owner only)
   /// DELETE /api/v1/lounges/:lounge_id/drivers/:driver_id
   Future<void> removeDriver({
@@ -182,6 +194,60 @@ class DriverRemoteDataSourceImpl implements DriverRemoteDataSource {
         'Failed to parse driver data from response',
         'PARSE_ERROR',
       );
+    }
+  }
+
+  @override
+  Future<DriverModel> updateDriver({
+    required String loungeId,
+    required String driverId,
+    String? fullName,
+    String? nicNumber,
+    String? contactNumber,
+    String? vehicleNumber,
+    String? vehicleType,
+  }) async {
+    try {
+      print('📤 [DRIVER API] Updating driver $driverId in lounge $loungeId');
+
+      final data = <String, dynamic>{};
+      if (fullName != null) data['name'] = fullName;
+      if (nicNumber != null) data['nic_number'] = nicNumber;
+      if (contactNumber != null) data['contact_no'] = contactNumber;
+      if (vehicleNumber != null) data['vehicle_no'] = vehicleNumber;
+      if (vehicleType != null) data['vehicle_type'] = vehicleType;
+
+      final response = await _dio.put(
+        '/api/v1/lounges/$loungeId/drivers/$driverId',
+        data: data,
+      );
+
+      print('📥 [DRIVER API] Update response status: ${response.statusCode}');
+      print('📥 [DRIVER API] Update response data: ${response.data}');
+
+      if (response.data == null) {
+        throw const ServerException(
+          'Empty response from server',
+          'EMPTY_RESPONSE',
+          null,
+        );
+      }
+
+      final responseData = response.data;
+      if (responseData is Map<String, dynamic>) {
+        final driverData =
+            responseData['driver'] ?? responseData['data'] ?? responseData;
+        return DriverModel.fromJson(driverData as Map<String, dynamic>);
+      }
+
+      return DriverModel.fromJson(responseData as Map<String, dynamic>);
+    } on DioException catch (e) {
+      print('❌ [DRIVER API] Update DioException: ${e.message}');
+      print('❌ [DRIVER API] Update Response: ${e.response?.data}');
+      throw _handleDioError(e);
+    } catch (e) {
+      print('❌ [DRIVER API] Update unexpected error: $e');
+      rethrow;
     }
   }
 

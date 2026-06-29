@@ -101,6 +101,26 @@ class _DriverListPageState extends State<DriverListPage> {
     }
   }
 
+  Future<void> _showEditDriverSheet(dynamic driver) async {
+    if (_selectedLoungeId == null) return;
+
+    final result = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => _EditDriverSheet(
+        driver: driver,
+        loungeId: _selectedLoungeId!,
+      ),
+    );
+
+    if (result == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Driver updated successfully')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -246,6 +266,7 @@ class _DriverListPageState extends State<DriverListPage> {
                     (driver) => DriverCard(
                       driver: driver,
                       onDelete: () => _confirmDeleteDriver(driver.id),
+                      onEdit: () => _showEditDriverSheet(driver),
                     ),
                   ),
               ],
@@ -279,11 +300,13 @@ class _DriverListPageState extends State<DriverListPage> {
 class DriverCard extends StatelessWidget {
   final dynamic driver;
   final VoidCallback? onDelete;
+  final VoidCallback? onEdit;
 
   const DriverCard({
     super.key,
     required this.driver,
     this.onDelete,
+    this.onEdit,
   });
 
   @override
@@ -327,8 +350,19 @@ class DriverCard extends StatelessWidget {
                   ),
                 ),
               ),
+              if (onEdit != null) ...[
+                const SizedBox(width: 4),
+                IconButton(
+                  onPressed: onEdit,
+                  icon: const Icon(
+                    Icons.edit_outlined,
+                    color: AppColors.primary,
+                  ),
+                  tooltip: 'Edit driver',
+                ),
+              ],
               if (onDelete != null) ...[
-                const SizedBox(width: 8),
+                const SizedBox(width: 4),
                 IconButton(
                   onPressed: onDelete,
                   icon: const Icon(
@@ -355,6 +389,333 @@ class DriverCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// ---------------- EDIT DRIVER BOTTOM SHEET ----------------
+class _EditDriverSheet extends StatefulWidget {
+  final dynamic driver;
+  final String loungeId;
+
+  const _EditDriverSheet({
+    required this.driver,
+    required this.loungeId,
+  });
+
+  @override
+  State<_EditDriverSheet> createState() => _EditDriverSheetState();
+}
+
+class _EditDriverSheetState extends State<_EditDriverSheet> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _nameController;
+  late final TextEditingController _contactController;
+  late final TextEditingController _nicController;
+  late final TextEditingController _vehicleNoController;
+  late String _selectedVehicleType;
+  bool _isSaving = false;
+
+  static const List<String> _vehicleTypes = [
+    'three_wheeler',
+    'car',
+    'van',
+  ];
+
+  static const Map<String, String> _vehicleTypeLabels = {
+    'three_wheeler': 'Three Wheeler',
+    'car': 'Car',
+    'van': 'Van',
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.driver.fullName);
+    _contactController =
+        TextEditingController(text: widget.driver.contactNumber);
+    _nicController = TextEditingController(text: widget.driver.nicNumber);
+    _vehicleNoController =
+        TextEditingController(text: widget.driver.vehicleNumber);
+    _selectedVehicleType = widget.driver.vehicleType;
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _contactController.dispose();
+    _nicController.dispose();
+    _vehicleNoController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _saveChanges() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isSaving = true);
+
+    // Only send fields that actually changed
+    final String? newName = _nameController.text.trim() != widget.driver.fullName
+        ? _nameController.text.trim()
+        : null;
+    final String? newContact =
+        _contactController.text.trim() != widget.driver.contactNumber
+            ? _contactController.text.trim()
+            : null;
+    final String? newNic =
+        _nicController.text.trim() != widget.driver.nicNumber
+            ? _nicController.text.trim()
+            : null;
+    final String? newVehicleNo =
+        _vehicleNoController.text.trim() != widget.driver.vehicleNumber
+            ? _vehicleNoController.text.trim()
+            : null;
+    final String? newVehicleType =
+        _selectedVehicleType != widget.driver.vehicleType
+            ? _selectedVehicleType
+            : null;
+
+    // Nothing changed
+    if (newName == null &&
+        newContact == null &&
+        newNic == null &&
+        newVehicleNo == null &&
+        newVehicleType == null) {
+      if (mounted) Navigator.pop(context, false);
+      return;
+    }
+
+    final driverProvider = context.read<DriverProvider>();
+    final success = await driverProvider.updateDriver(
+      loungeId: widget.loungeId,
+      driverId: widget.driver.id,
+      fullName: newName,
+      nicNumber: newNic,
+      contactNumber: newContact,
+      vehicleNumber: newVehicleNo,
+      vehicleType: newVehicleType,
+    );
+
+    if (!mounted) return;
+
+    setState(() => _isSaving = false);
+
+    if (success) {
+      Navigator.pop(context, true);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content:
+              Text(driverProvider.error ?? 'Failed to update driver'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      driverProvider.clearError();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      padding: EdgeInsets.only(
+        left: 20,
+        right: 20,
+        top: 16,
+        bottom: 16 + bottomInset,
+      ),
+      child: SingleChildScrollView(
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Handle
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Title
+              const Text(
+                'Edit Driver Details',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Full Name
+              TextFormField(
+                controller: _nameController,
+                decoration: _inputDecoration('Full Name', Icons.person_outline),
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Name is required';
+                  }
+                  if (value.trim().length < 2) {
+                    return 'Name must be at least 2 characters';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 14),
+
+              // Contact Number
+              TextFormField(
+                controller: _contactController,
+                decoration:
+                    _inputDecoration('Contact Number', Icons.phone_outlined),
+                keyboardType: TextInputType.phone,
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Contact number is required';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 14),
+
+              // NIC Number
+              TextFormField(
+                controller: _nicController,
+                decoration:
+                    _inputDecoration('NIC Number', Icons.credit_card_outlined),
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'NIC number is required';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 14),
+
+              // Vehicle Number
+              TextFormField(
+                controller: _vehicleNoController,
+                decoration: _inputDecoration(
+                    'Vehicle Number', Icons.directions_car_outlined),
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Vehicle number is required';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 14),
+
+              // Vehicle Type Dropdown
+              DropdownButtonFormField<String>(
+                value: _selectedVehicleType,
+                decoration:
+                    _inputDecoration('Vehicle Type', Icons.local_taxi_outlined),
+                items: _vehicleTypes.map((type) {
+                  return DropdownMenuItem<String>(
+                    value: type,
+                    child: Text(_vehicleTypeLabels[type] ?? type),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  if (value != null) {
+                    setState(() => _selectedVehicleType = value);
+                  }
+                },
+              ),
+              const SizedBox(height: 24),
+
+              // Action Buttons
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed:
+                          _isSaving ? null : () => Navigator.pop(context),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        side: const BorderSide(color: AppColors.border),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text(
+                        'Cancel',
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: _isSaving ? null : _saveChanges,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: AppColors.textLight,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: _isSaving
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor:
+                                    AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            )
+                          : const Text(
+                              'Save Changes',
+                              style: TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  InputDecoration _inputDecoration(String label, IconData icon) {
+    return InputDecoration(
+      labelText: label,
+      prefixIcon: Icon(icon, size: 20, color: AppColors.primary),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppColors.border),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppColors.border),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
     );
   }
 }
