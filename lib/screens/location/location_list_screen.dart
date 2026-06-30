@@ -19,6 +19,8 @@ class LocationListScreen extends StatefulWidget {
 
 class _LocationListScreenState extends State<LocationListScreen> {
   String? _selectedLoungeId;
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
 
   @override
   void initState() {
@@ -26,6 +28,17 @@ class _LocationListScreenState extends State<LocationListScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initialize();
     });
+    _searchController.addListener(() {
+      setState(() {
+        _searchQuery = _searchController.text.trim().toLowerCase();
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _initialize() async {
@@ -753,33 +766,51 @@ class _LocationListScreenState extends State<LocationListScreen> {
             return const Center(child: CircularProgressIndicator());
           }
 
-          final content = provider.locations.isEmpty
+
+          // Compute filtered locations based on search query
+          final filteredLocations = _searchQuery.isEmpty
+              ? provider.locations
+              : provider.locations
+                  .where((loc) => loc.locationName
+                      .toLowerCase()
+                      .contains(_searchQuery))
+                  .toList();
+
+          // Build content for filtered results
+          final filteredContent = filteredLocations.isEmpty
               ? Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(
-                        Icons.location_off,
+                        _searchQuery.isNotEmpty
+                            ? Icons.search_off
+                            : Icons.location_off,
                         size: 64,
                         color: AppColors.textSecondary.withOpacity(0.5),
                       ),
                       const SizedBox(height: 16),
-                      const Text(
-                        'No locations saved yet',
-                        style: TextStyle(
+                      Text(
+                        _searchQuery.isNotEmpty
+                            ? 'No locations found for "$_searchQuery"'
+                            : 'No locations saved yet',
+                        style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w500,
                           color: AppColors.textSecondary,
                         ),
+                        textAlign: TextAlign.center,
                       ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        'Add locations from Transportation Service',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: AppColors.textSecondary,
+                      if (_searchQuery.isEmpty) ...[
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Add locations from Transportation Service',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: AppColors.textSecondary,
+                          ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                 )
@@ -787,9 +818,9 @@ class _LocationListScreenState extends State<LocationListScreen> {
                   onRefresh: _loadLocations,
                   child: ListView.builder(
                     padding: const EdgeInsets.all(20),
-                    itemCount: provider.locations.length,
+                    itemCount: filteredLocations.length,
                     itemBuilder: (context, index) {
-                      final location = provider.locations[index];
+                      final location = filteredLocations[index];
                       final prices = location.prices ?? {};
 
                       return Container(
@@ -810,7 +841,6 @@ class _LocationListScreenState extends State<LocationListScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // Location header
                             Row(
                               children: [
                                 Container(
@@ -854,8 +884,6 @@ class _LocationListScreenState extends State<LocationListScreen> {
                                 ),
                               ],
                             ),
-
-                            // Coordinates
                             const SizedBox(height: 12),
                             Container(
                               padding: const EdgeInsets.all(12),
@@ -883,7 +911,6 @@ class _LocationListScreenState extends State<LocationListScreen> {
                                 ],
                               ),
                             ),
-
                             const SizedBox(height: 10),
                             Row(
                               children: [
@@ -899,13 +926,10 @@ class _LocationListScreenState extends State<LocationListScreen> {
                                 ),
                               ],
                             ),
-
                             if (prices.isNotEmpty) ...[
                               const SizedBox(height: 16),
                               const Divider(height: 1),
                               const SizedBox(height: 16),
-
-                              // Prices
                               const Text(
                                 'Pricing',
                                 style: TextStyle(
@@ -915,7 +939,6 @@ class _LocationListScreenState extends State<LocationListScreen> {
                                 ),
                               ),
                               const SizedBox(height: 12),
-
                               ...prices.entries.map((entry) {
                                 final price = entry.value;
                                 if (price <= 0) return const SizedBox.shrink();
@@ -973,6 +996,7 @@ class _LocationListScreenState extends State<LocationListScreen> {
 
           return Column(
             children: [
+              // Lounge selector dropdown
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
                 child: Container(
@@ -1026,10 +1050,74 @@ class _LocationListScreenState extends State<LocationListScreen> {
                   ),
                 ),
               ),
+              // Universal search bar
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                child: TextField(
+                  controller: _searchController,
+                  textInputAction: TextInputAction.search,
+                  decoration: InputDecoration(
+                    hintText: 'Search locations by name...',
+                    hintStyle: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 14,
+                    ),
+                    prefixIcon: const Icon(
+                      Icons.search,
+                      color: AppColors.textSecondary,
+                      size: 22,
+                    ),
+                    suffixIcon: _searchQuery.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(
+                              Icons.close,
+                              color: AppColors.textSecondary,
+                              size: 20,
+                            ),
+                            onPressed: () {
+                              _searchController.clear();
+                            },
+                          )
+                        : null,
+                    filled: true,
+                    fillColor: AppColors.surface,
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 12),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: AppColors.border),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: AppColors.border),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(
+                          color: AppColors.primary, width: 1.5),
+                    ),
+                  ),
+                ),
+              ),
+              // Results count when searching
+              if (_searchQuery.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      '${filteredLocations.length} result${filteredLocations.length == 1 ? '' : 's'} for "$_searchQuery"',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                ),
               Expanded(
                 child: Stack(
                   children: [
-                    Positioned.fill(child: content),
+                    Positioned.fill(child: filteredContent),
                     if (provider.isLoading)
                       Positioned.fill(
                         child: Container(
