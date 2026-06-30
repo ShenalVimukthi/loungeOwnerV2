@@ -1417,18 +1417,67 @@ class _EditLoungeDetailsPageState extends State<EditLoungeDetailsPage> {
 
             return Card(
               margin: const EdgeInsets.only(bottom: 12),
-              child: ListTile(
-                title: Text(routeLabel),
-                subtitle: Text(
-                  'Between: ${stopBeforeName ?? 'Unknown stop'} -> ${stopAfterName ?? 'Unknown stop'}',
-                ),
-                trailing: IconButton(
-                  icon: const Icon(Icons.delete, color: Colors.red),
-                  onPressed: () {
-                    setState(() {
-                      _selectedRoutes.removeAt(index);
-                    });
-                  },
+              elevation: 1,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+                side: BorderSide(color: Colors.grey.shade200),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(
+                        Icons.directions_bus,
+                        color: AppColors.primary,
+                        size: 22,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            routeLabel,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${stopBeforeName ?? 'Unknown stop'}  →  ${stopAfterName ?? 'Unknown stop'}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.edit_outlined,
+                          color: AppColors.primary, size: 20),
+                      tooltip: 'Edit route',
+                      onPressed: () => _showEditRouteDialog(index),
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.delete_outline,
+                          color: Colors.red.shade400, size: 20),
+                      tooltip: 'Remove route',
+                      onPressed: () {
+                        setState(() {
+                          _selectedRoutes.removeAt(index);
+                        });
+                      },
+                    ),
+                  ],
                 ),
               ),
             );
@@ -1445,6 +1494,321 @@ class _EditLoungeDetailsPageState extends State<EditLoungeDetailsPage> {
       ],
     );
   }
+
+  /// Opens the route editor pre-filled with the data at [index].
+  /// On save, replaces the entry in [_selectedRoutes].
+  Future<void> _showEditRouteDialog(int index) async {
+    final existing = Map<String, dynamic>.from(_selectedRoutes[index]);
+
+    String? selectedRouteId = existing['routeId'] as String?;
+    String? selectedStopBeforeId = existing['stopBeforeId'] as String?;
+    String? selectedStopAfterId = existing['stopAfterId'] as String?;
+
+    // Pre-load stops for the existing route
+    List<MasterRouteStop> routeStops = [];
+    if (selectedRouteId != null &&
+        _routeStopsByRouteId.containsKey(selectedRouteId)) {
+      routeStops = _routeStopsByRouteId[selectedRouteId]!;
+    }
+
+    bool loadingStops = routeStops.isEmpty && selectedRouteId != null;
+    bool loadingInitialRoutes = _masterRoutes.isEmpty;
+    String searchQuery = '';
+    List<MasterRoute> allRoutes = List.from(_masterRoutes);
+    List<MasterRoute> dialogRoutes = List.from(_masterRoutes);
+
+    Future<void> loadInitialRoutes(StateSetter setDialogState) async {
+      try {
+        final apiClient = InjectionContainer().apiClient;
+        final routeDataSource = RouteRemoteDataSource(apiClient: apiClient);
+        final routes = await routeDataSource.getMasterRoutes();
+        allRoutes = routes;
+        dialogRoutes = routes;
+        setDialogState(() => loadingInitialRoutes = false);
+      } catch (e) {
+        setDialogState(() => loadingInitialRoutes = false);
+      }
+    }
+
+    Future<void> loadStopsForRoute(
+        String routeId, StateSetter setDialogState) async {
+      if (_routeStopsByRouteId.containsKey(routeId)) {
+        setDialogState(() {
+          routeStops = _routeStopsByRouteId[routeId]!;
+          loadingStops = false;
+        });
+        return;
+      }
+      setDialogState(() => loadingStops = true);
+      try {
+        final apiClient = InjectionContainer().apiClient;
+        final routeDataSource = RouteRemoteDataSource(apiClient: apiClient);
+        final stops = await routeDataSource.getRouteStops(routeId);
+        _routeStopsByRouteId[routeId] = stops;
+        setDialogState(() {
+          routeStops = stops;
+          loadingStops = false;
+        });
+      } catch (_) {
+        setDialogState(() => loadingStops = false);
+      }
+    }
+
+    void filterRoutes(String query, StateSetter setDialogState) {
+      if (query.isEmpty) {
+        setDialogState(() => dialogRoutes = allRoutes);
+      } else {
+        final q = query.toLowerCase();
+        setDialogState(() {
+          dialogRoutes = allRoutes.where((r) {
+            return r.routeNumber.toLowerCase().contains(q) ||
+                r.routeName.toLowerCase().contains(q) ||
+                r.originCity.toLowerCase().contains(q) ||
+                r.destinationCity.toLowerCase().contains(q);
+          }).toList();
+        });
+      }
+    }
+
+    await showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          // Kick off async loads only once
+          if (loadingInitialRoutes && allRoutes.isEmpty) {
+            loadInitialRoutes(setDialogState);
+          }
+          if (loadingStops && selectedRouteId != null) {
+            loadStopsForRoute(selectedRouteId!, setDialogState);
+          }
+
+          return AlertDialog(
+            title: const Text('Edit Route'),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // ── Route search ──────────────────────────────────
+                    const Text(
+                      'Search Route',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      decoration: InputDecoration(
+                        border: const OutlineInputBorder(),
+                        hintText: 'Type route number or city name...',
+                        prefixIcon: const Icon(Icons.search),
+                        suffixIcon: searchQuery.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.clear),
+                                onPressed: () {
+                                  searchQuery = '';
+                                  filterRoutes('', setDialogState);
+                                },
+                              )
+                            : null,
+                      ),
+                      onChanged: (value) {
+                        searchQuery = value;
+                        filterRoutes(value, setDialogState);
+                      },
+                    ),
+                    const SizedBox(height: 16),
+
+                    // ── Route dropdown ────────────────────────────────
+                    if (loadingInitialRoutes)
+                      const Center(child: CircularProgressIndicator())
+                    else if (dialogRoutes.isNotEmpty) ...[
+                      const Text(
+                        'Select Route',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<String>(
+                        value: dialogRoutes.any((r) => r.id == selectedRouteId)
+                            ? selectedRouteId
+                            : null,
+                        decoration: const InputDecoration(
+                          border: OutlineInputBorder(),
+                          hintText: 'Choose a route',
+                        ),
+                        isExpanded: true,
+                        items: dialogRoutes.map((route) {
+                          return DropdownMenuItem(
+                            value: route.id,
+                            child: Text(
+                              '${route.routeNumber}: ${route.routeName} (${route.routeDisplay})',
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (value) async {
+                          setDialogState(() {
+                            selectedRouteId = value;
+                            selectedStopBeforeId = null;
+                            selectedStopAfterId = null;
+                            routeStops = [];
+                          });
+                          if (value != null) {
+                            await loadStopsForRoute(value, setDialogState);
+                          }
+                        },
+                      ),
+                    ],
+
+                    // ── Loading stops spinner ─────────────────────────
+                    if (loadingStops)
+                      const Padding(
+                        padding: EdgeInsets.all(16.0),
+                        child: Center(child: CircularProgressIndicator()),
+                      ),
+
+                    // ── Stop selectors ────────────────────────────────
+                    if (routeStops.isNotEmpty) ...[
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Stop Before Lounge',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<String>(
+                        value: routeStops.any(
+                                (s) => s.id == selectedStopBeforeId)
+                            ? selectedStopBeforeId
+                            : null,
+                        decoration: const InputDecoration(
+                          border: OutlineInputBorder(),
+                          hintText: 'Select stop before',
+                        ),
+                        isExpanded: true,
+                        items: routeStops.map((stop) {
+                          return DropdownMenuItem(
+                            value: stop.id,
+                            child: Text('${stop.stopOrder}. ${stop.stopName}'),
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          setDialogState(() {
+                            selectedStopBeforeId = value;
+                            // Reset "after" if it no longer comes after the new "before"
+                            if (selectedStopAfterId != null) {
+                              final beforeIdx = routeStops
+                                  .indexWhere((s) => s.id == value);
+                              final afterIdx = routeStops.indexWhere(
+                                  (s) => s.id == selectedStopAfterId);
+                              if (afterIdx <= beforeIdx) {
+                                selectedStopAfterId = null;
+                              }
+                            }
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Stop After Lounge',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<String>(
+                        value:
+                            routeStops.any((s) => s.id == selectedStopAfterId)
+                                ? selectedStopAfterId
+                                : null,
+                        decoration: const InputDecoration(
+                          border: OutlineInputBorder(),
+                          hintText: 'Select stop after',
+                        ),
+                        isExpanded: true,
+                        items: routeStops.where((stop) {
+                          if (selectedStopBeforeId == null) return true;
+                          final beforeIdx = routeStops
+                              .indexWhere((s) => s.id == selectedStopBeforeId);
+                          final currentIdx =
+                              routeStops.indexWhere((s) => s.id == stop.id);
+                          return currentIdx > beforeIdx;
+                        }).map((stop) {
+                          return DropdownMenuItem(
+                            value: stop.id,
+                            child: Text('${stop.stopOrder}. ${stop.stopName}'),
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          setDialogState(() => selectedStopAfterId = value);
+                        },
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: (selectedRouteId != null &&
+                        selectedStopBeforeId != null &&
+                        selectedStopAfterId != null)
+                    ? () {
+                        // Validate order
+                        final beforeIdx = routeStops.indexWhere(
+                            (s) => s.id == selectedStopBeforeId);
+                        final afterIdx = routeStops.indexWhere(
+                            (s) => s.id == selectedStopAfterId);
+                        if (afterIdx <= beforeIdx) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                  'Stop After must come after Stop Before'),
+                            ),
+                          );
+                          return;
+                        }
+
+                        final selectedRoute = (dialogRoutes.any(
+                                (r) => r.id == selectedRouteId)
+                            ? dialogRoutes
+                                .firstWhere((r) => r.id == selectedRouteId)
+                            : allRoutes
+                                .firstWhere((r) => r.id == selectedRouteId));
+                        final stopBefore = routeStops
+                            .firstWhere((s) => s.id == selectedStopBeforeId);
+                        final stopAfter = routeStops
+                            .firstWhere((s) => s.id == selectedStopAfterId);
+
+                        setState(() {
+                          _selectedRoutes[index] = {
+                            'routeId': selectedRouteId!,
+                            'stopBeforeId': selectedStopBeforeId!,
+                            'stopAfterId': selectedStopAfterId!,
+                            'routeNumber': selectedRoute.routeNumber,
+                            'routeDisplay': selectedRoute.routeDisplay,
+                            'routeName': selectedRoute.routeName,
+                            'stopBeforeName': stopBefore.stopName,
+                            'stopAfterName': stopAfter.stopName,
+                          };
+                        });
+                        Navigator.pop(context);
+                      }
+                    : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Save Changes'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
 
   Future<void> _showAddRouteDialog() async {
     String? selectedRouteId;
